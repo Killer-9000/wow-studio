@@ -1,0 +1,8 @@
+./out
+/vendor/xxHash
+/vendor/Vulkan-Headers
+/vendor/volk
+/vendor/SPIRV-Tools
+/vendor/SDL
+/vendor/glslang
+/.vs

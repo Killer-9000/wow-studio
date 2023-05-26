@@ -1,0 +1,27 @@
+- A bunch of the windows might be combined, just so new ones don't keep appearing
+
+- DiligentEngine handling rendering
+- EnTT handling entities
+
+World View:
+  - Terrain
+    - Heightmap
+    - Alphamap
+    - Textures
+
+  - Skybox
+    - Static
+
+  - Static models
+    - Model
+    - Textures
+    - Shaders
+    - LOD
+    - Animation data.
+
+  # - Dynamic models (animated models)
+  #   - Static model
+
+  - Doodad models (Can be either static or dynamic)
+    - Static or Dynamic
+    - Linked to WMO
