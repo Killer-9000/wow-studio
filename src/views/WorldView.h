@@ -2,13 +2,12 @@
 
 #include "IViewport.h"
 #include "data/WorldData.h"
+#include <graphics/renderers/WorldRenderer.h>
 #include "loaders/AsyncLoader.h"
 #include "loaders/MapTileLoader.h"
 #include "loaders/WorldDataLoader.h"
 
-#include <Buffer.h>
 #include <fmt/printf.h>
-#include <RefCntAutoPtr.hpp>
 
 // Handles view of an open world within a map.
 class WorldView : public IViewport
@@ -73,7 +72,7 @@ public:
 	float CameraSpeed = 1.0f;
 	glm::mat4 CameraMatrix;
 	glm::mat4 ProjectionMatrix;
-	Diligent::RefCntAutoPtr<Diligent::IBuffer> CameraVPMatrix;
+	SDL_GPUBuffer* CameraVPMatrix;
 	WorldRenderer worldRenderer;
 
 private:

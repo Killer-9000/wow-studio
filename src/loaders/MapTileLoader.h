@@ -3,19 +3,16 @@
 #include "data/DBCFile.h"
 #include "data/CommonFileTypes.h"
 
-#include <Buffer.h>
-#include <RefCntAutoPtr.hpp>
-
 struct Entity;
 
 struct ADT
 {
-	struct MVERChunk : public IChunk
+	struct MVERChunk : public SChunk
 	{
 		uint32_t version;
 	};
 
-	struct MHDRChunk : public IChunk
+	struct MHDRChunk : public SChunk
 	{
 		uint32_t flags; // 1 for MFBO
 		uint32_t mcin;
@@ -32,7 +29,7 @@ struct ADT
 		uint32_t padding[4];
 	};
 
-	struct MCINChunk : public IChunk
+	struct MCINChunk : public SChunk
 	{
 		struct MCINEntry
 		{
@@ -44,32 +41,32 @@ struct ADT
 		MCINEntry entries[16][16];
 	};
 
-	struct MTEXChunk : public IChunk
+	struct MTEXChunk : public SChunk
 	{
-		char filenames[255]; // Multiple zero-terminated strings.
+		char filenames[]; // Multiple zero-terminated strings.
 	};
 
-	struct MMDXChunk : public IChunk
+	struct MMDXChunk : public SChunk
 	{
-		char filenames[255]; // Multiple zero-terminated strings.
+		char filenames[]; // Multiple zero-terminated strings.
 	};
 
-	struct MWMOChunk : public IChunk
+	struct MWMOChunk : public SChunk
 	{
-		char filenames[255]; // Multiple zero-terminated strings.
+		char filenames[]; // Multiple zero-terminated strings.
 	};
 
-	struct MMIDChunk : public IChunk
+	struct MMIDChunk : public SChunk
 	{
-		uint32_t offsets[255]; // Offset into MMDX
+		uint32_t offsets[]; // Offset into MMDX
 	};
 
-	struct MWIDChunk : public IChunk
+	struct MWIDChunk : public SChunk
 	{
-		uint32_t offsets[255]; // Offset into MWMO
+		uint32_t offsets[]; // Offset into MWMO
 	};
 
-	struct MDDFChunk : public IChunk
+	struct MDDFChunk : public SChunk
 	{
 		enum MDDFFlags : uint16_t
 		{
@@ -87,10 +84,10 @@ struct ADT
 			MDDFFlags flags;
 		};
 
-		MDDFEntry entries[255];
+		MDDFEntry entries[];
 	};
 
-	struct MODFChunk : public IChunk
+	struct MODFChunk : public SChunk
 	{
 		enum MODFFlags : uint16_t
 		{
@@ -110,10 +107,10 @@ struct ADT
 			uint8_t padding[2];
 		};
 
-		MODFEntry entries[255];
+		MODFEntry entries[];
 	};
 
-	struct MH20Chunk : public IChunk
+	struct MH20Chunk : public SChunk
 	{
 		struct MH20LiquidChunk
 		{
@@ -122,7 +119,7 @@ struct ADT
 			uint32_t offsetAttributes;
 		} header[16 * 16];
 
-		uint8_t data[255]; // The structures below are in this.
+		uint8_t data[]; // The structures below are in this.
 
 		struct MH20ChunkAttributes
 		{
@@ -145,7 +142,7 @@ struct ADT
 		};
 	};
 
-	struct MCNKChunk : public IChunk
+	struct MCNKChunk : public SChunk
 	{
 		enum MCNKFlags : uint32_t
 		{
@@ -188,24 +185,24 @@ struct ADT
 		uint32_t padding1;
 	};
 
-	struct MFBOChunk : public IChunk
+	struct MFBOChunk : public SChunk
 	{
 		uint16_t minimum[3][3];
 		uint16_t maximum[3][3];
 	};
 
-	struct MTXFChunk : public IChunk
+	struct MTXFChunk : public SChunk
 	{
-		uint32_t flags[255]; // Use cubemaps.
+		uint32_t flags[]; // Use cubemaps.
 	};
 
 	// MCNK Sub-Chunks
-	struct MCVTChunk : public IChunk
+	struct MCVTChunk : public SChunk
 	{
 		float height[9 * 9 + 8 * 8];
 	};
 
-	struct MCCVChunk : public IChunk
+	struct MCCVChunk : public SChunk
 	{
 		struct MCCVEntry
 		{
@@ -213,7 +210,7 @@ struct ADT
 		} entries[9 * 9 + 8 * 8];
 	};
 
-	struct MCNRChunk : public IChunk
+	struct MCNRChunk : public SChunk
 	{
 		struct MCNREntry
 		{
@@ -222,7 +219,7 @@ struct ADT
 		uint8_t padding[13];
 	};
 
-	struct MCLYChunk : public IChunk
+	struct MCLYChunk : public SChunk
 	{
 		struct MCLYFlags
 		{
@@ -247,18 +244,18 @@ struct ADT
 
 	};
 
-	struct MCRFChunk : public IChunk
-	{
-		uint32_t doodadRefs[255]; // nDoodadRefs, references MDDF
-		uint32_t objectRefs[255]; // nMapObjRefs, references MODF
-	};
+	//struct MCRFChunk : public SChunk
+	//{
+	//	uint32_t doodadRefs[]; // nDoodadRefs, references MDDF
+	//	uint32_t objectRefs[]; // nMapObjRefs, references MODF
+	//};
 
-	struct MCSHChunk : public IChunk
+	struct MCSHChunk : public SChunk
 	{
 		uint8_t shadowMap[512];
 	};
 
-	struct MCALChunk : public IChunk
+	struct MCALChunk : public SChunk
 	{
 		enum class CompressionMode : uint8_t
 		{
@@ -270,7 +267,7 @@ struct ADT
 		{
 			uint8_t count : 7;
 			CompressionMode mode : 1;
-			uint8_t value[255];
+			uint8_t value[];
 		};
 
 		// Uncompressed 8bit x 4096, Uncompressed 4bit x 2048
@@ -278,7 +275,7 @@ struct ADT
 
 	};
 
-	struct MCLQChunk : public IChunk
+	struct MCLQChunk : public SChunk
 	{
 		struct MCLQVert
 		{
@@ -330,7 +327,7 @@ struct ADT
 		MCLQFlow flow[2]; // always 2 in file, independent on nFlowvs.
 	};
 
-	struct MCSEChunk : public IChunk
+	struct MCSEChunk : public SChunk
 	{
 		uint32_t entryId;
 		glm::vec3 position;
@@ -343,5 +340,5 @@ struct ADT
 class MapTileLoader
 {
 public:
-	static void Load(Diligent::RefCntAutoPtr<Diligent::IBuffer> gpuDataBuffer, Entity* tile, MapDBC::Record* record, uint32_t x, uint32_t y);
+	static void Load(void* gpuDataBuffer, Entity* tile, MapDBC::Record* record, uint32_t x, uint32_t y);
 };

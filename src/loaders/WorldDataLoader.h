@@ -7,12 +7,12 @@ struct WorldData;
 
 struct WDT
 {
-	struct MVERChunk : public IChunk
+	struct MVERChunk : public SChunk
 	{
 		uint32_t version;
 	};
 
-	struct MPHDChunk : public IChunk
+	struct MPHDChunk : public SChunk
 	{
 		enum MPHDFlags : uint32_t
 		{
@@ -25,7 +25,7 @@ struct WDT
 		uint32_t padding[7];
 	};
 
-	struct MAINChunk : public IChunk
+	struct MAINChunk : public SChunk
 	{
 		struct MAINAreaInfo
 		{
@@ -38,12 +38,12 @@ struct WDT
 		MAINAreaInfo mapAreaInfo[64][64];
 	};
 
-	struct MWMOChunk : public IChunk
+	struct MWMOChunk : public SChunk
 	{
 		char filename[255];
 	};
 
-	struct MODFChunk : public IChunk
+	struct MODFChunk : public SChunk
 	{
 		enum MODFFlags : uint16_t
 		{

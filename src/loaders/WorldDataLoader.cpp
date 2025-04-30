@@ -21,13 +21,13 @@ bool WorldDataLoader::Load(WorldData* worldData, MapDBC::Record* record)
 		return false;
 	}
 
-	tsl::robin_map<uint32_t, IChunk*> chunks;
+	tsl::robin_map<uint32_t, SChunk*> chunks;
 	chunks.reserve(13);
 
 	uint8_t* ptr = data;
 	while (ptr < data + size)
 	{
-		IChunk* chunk = (IChunk*)ptr;
+		SChunk* chunk = (SChunk*)ptr;
 		switch (chunk->magic.magicI)
 		{
 		case 'MVER': chunks.emplace('MVER', chunk); break;
@@ -38,7 +38,7 @@ bool WorldDataLoader::Load(WorldData* worldData, MapDBC::Record* record)
 		default: printf("WARN: Unknown ADT Chunk %c%c%c%c.", chunk->magic.magicC[0], chunk->magic.magicC[1], chunk->magic.magicC[2], chunk->magic.magicC[3]);
 		}
 
-		ptr += chunk->size + sizeof(IChunk);
+		ptr += chunk->size + sizeof(SChunk);
 	}
 
 	WDT::MPHDChunk* mphd = (WDT::MPHDChunk*)chunks['MPHD'];

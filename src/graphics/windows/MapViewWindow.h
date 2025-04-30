@@ -3,8 +3,6 @@
 #include "graphics/IWindow.h"
 #include "views/WorldView.h"
 
-#include "graphics/Renderer.h"
-
 class MapViewWindow : public IWindow
 {
 public:
@@ -44,19 +42,19 @@ public:
 private:
 	void CreateWorldGridShader();
 
-	Diligent::RefCntAutoPtr<Diligent::ITexture> m_renderTexture, m_depthTexture;
+	//Diligent::RefCntAutoPtr<Diligent::ITexture> m_renderTexture, m_depthTexture;
 	glm::vec2 m_renderViewportPos, m_renderViewportSize;
 	bool m_renderViewportFocused = false;
 	std::unique_ptr<WorldView> m_worldView;
 	float m_worldClearColour[4] = { 0.0f, 0.0f, 0.0f, 1.0f};
 
-	struct
-	{
-		Diligent::RefCntAutoPtr<Diligent::IBuffer> indexBuffer;
-		Diligent::RefCntAutoPtr<Diligent::IBuffer> vertexBuffer;
-		Diligent::RefCntAutoPtr<Diligent::IShaderResourceBinding> shaderResources;
-		Diligent::RefCntAutoPtr<Diligent::IPipelineState> pipeline;
-	} m_worldGrid;
+	//struct
+	//{
+	//	Diligent::RefCntAutoPtr<Diligent::IBuffer> indexBuffer;
+	//	Diligent::RefCntAutoPtr<Diligent::IBuffer> vertexBuffer;
+	//	Diligent::RefCntAutoPtr<Diligent::IShaderResourceBinding> shaderResources;
+	//	Diligent::RefCntAutoPtr<Diligent::IPipelineState> pipeline;
+	//} m_worldGrid;
 
 	bool shadersCreated = false;
 

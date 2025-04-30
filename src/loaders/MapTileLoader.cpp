@@ -1,11 +1,11 @@
 #include "MapTileLoader.h"
 #include "data/Entity.h"
+#include "graphics/Rendering.h"
 
 #include <fmt/printf.h>
 #include <tsl/robin_map.h>
-#include <graphics/Renderer.h>
 
-void MapTileLoader::Load(Diligent::RefCntAutoPtr<Diligent::IBuffer> gpuDataBuffer, Entity* tile, MapDBC::Record* record, uint32_t x, uint32_t y)
+void MapTileLoader::Load(void* gpuDataBuffer, Entity* tile, MapDBC::Record* record, uint32_t x, uint32_t y)
 {
 	if (!tile || !record || x > 64 || y > 64)
 		return;
@@ -22,7 +22,7 @@ void MapTileLoader::Load(Diligent::RefCntAutoPtr<Diligent::IBuffer> gpuDataBuffe
 		return;
 	}
 
-	tsl::robin_map<uint32_t, IChunk*> chunks;
+	tsl::robin_map<uint32_t, SChunk*> chunks;
 	chunks.reserve(13);
 
 	// Load chunks.
@@ -30,7 +30,7 @@ void MapTileLoader::Load(Diligent::RefCntAutoPtr<Diligent::IBuffer> gpuDataBuffe
 		uint8_t* ptr = data;
 		while (ptr < data + size)
 		{
-			IChunk* chunk = (IChunk*)ptr;
+			SChunk* chunk = (SChunk*)ptr;
 			switch (chunk->magic.magicI)
 			{
 			case 'MVER': chunks.emplace('MVER', chunk); break;
@@ -50,12 +50,13 @@ void MapTileLoader::Load(Diligent::RefCntAutoPtr<Diligent::IBuffer> gpuDataBuffe
 			default: printf("WARN: Unknown ADT Chunk %c%c%c%c.\n", chunk->magic.magicC[3], chunk->magic.magicC[2], chunk->magic.magicC[1], chunk->magic.magicC[0]);
 			}
 
-			ptr += chunk->size + sizeof(IChunk);
+			ptr += chunk->size + sizeof(SChunk);
 		}
 	}
 
 	ADT::MCINChunk* mcin = (ADT::MCINChunk*)chunks['MCIN'];
 	for (int x = 0; x < 16; x++)
+	{
 		for (int y = 0; y < 16; y++)
 		{
 			MapTile::GPUData& gpuData = tile->GetMapTile()->_gpuData[x][y];
@@ -68,7 +69,7 @@ void MapTileLoader::Load(Diligent::RefCntAutoPtr<Diligent::IBuffer> gpuDataBuffe
 			ADT::MCNRChunk* mcnr = (ADT::MCNRChunk*)(data + mcnk->ofsNormal);
 			ADT::MCSHChunk* mcsh = (ADT::MCSHChunk*)(data + mcnk->ofsShadow);
 
-			memcpy(gpuData.height, mcvt->height, 9*9 + 8*8);
+			memcpy(gpuData.height, mcvt->height, 9 * 9 + 8 * 8);
 			for (int i = 0; i < 9 * 9 + 8 * 8; i++)
 			{
 				glm::u8vec4& col = mccv->entries[i].colour;
@@ -84,11 +85,20 @@ void MapTileLoader::Load(Diligent::RefCntAutoPtr<Diligent::IBuffer> gpuDataBuffe
 
 			gpuData.discard = false;
 		}
+	}
 
-	void* mapped;
-	SRendererContext->MapBuffer(gpuDataBuffer, Diligent::MAP_WRITE, Diligent::MAP_FLAG_NONE, mapped);
-	memcpy((uint8_t*)mapped + ((sizeof(MapTile::GPUData) * (16 * 16)) * (y * 16 + x)), tile->GetMapTile()->_gpuData, sizeof(MapTile::_gpuData));
-	SRendererContext->UnmapBuffer(gpuDataBuffer, Diligent::MAP_WRITE);
+	//Rendering::UploadBufferData(device, gpuDataBuffer, );
+
+	//SDL_CreateGPUTransferBuffer();
+	//SDL_MapGPUTransferBuffer();
+	//SDL_UnmapGPUTransferBuffer();
+	//SDL_UploadToGPUBuffer();
+	//SDL_ReleaseGPUTransferBuffer();
+
+	//void* mapped;
+	//SRendererContext->MapBuffer(gpuDataBuffer, Diligent::MAP_WRITE, Diligent::MAP_FLAG_NONE, mapped);
+	//memcpy((uint8_t*)mapped + ((sizeof(MapTile::GPUData) * (16 * 16)) * (y * 16 + x)), tile->GetMapTile()->_gpuData, sizeof(MapTile::_gpuData));
+	//SRendererContext->UnmapBuffer(gpuDataBuffer, Diligent::MAP_WRITE);
 
 	tile->GetMapTile()->loaded = true;
 }

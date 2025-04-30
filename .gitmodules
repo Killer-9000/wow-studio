@@ -13,3 +13,12 @@
 [submodule "vendor/fmt"]
 	path = vendor/fmt
 	url = https://github.com/fmtlib/fmt.git
+[submodule "vendor/json"]
+	path = vendor/json
+	url = https://github.com/nlohmann/json.git
+[submodule "vendor/robin-map"]
+	path = vendor/robin-map
+	url = https://github.com/Tessil/robin-map.git
+[submodule "vendor/VulkanMemoryAllocator-Hpp"]
+	path = vendor/VulkanMemoryAllocator-Hpp
+	url = https://github.com/YaaZ/VulkanMemoryAllocator-Hpp.git

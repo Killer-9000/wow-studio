@@ -1,8 +1,7 @@
 #include "ProjectSelectWindow.h"
 
 #include "data/Archive/ArchiveMgr.h"
-#include "graphics/imgui_extensions/ImFileDialog.h"
-#include "graphics/windows/MapSelectWindow.h"
+#include "graphics/windows/ToolsHubWindow.h"
 #include <graphics/WindowMgr.h>
 
 #include <fmt/printf.h>
@@ -25,35 +24,23 @@ WowLocaleEnum ProjectSelectWindow::LocaleStringToEnum(char locale[4])
 	else if (!memcmp(locale, "ptPT", 4)) return ptPT;
 	else if (!memcmp(locale, "ptBR", 4)) return ptBR;
 	else if (!memcmp(locale, "itIT", 4)) return itIT;
-	assert(false || "Unkown locale");
+	assert(false && "Unkown locale");
 }
 
 bool ProjectSelectWindow::OpenClient(const std::filesystem::path& directory, std::string& errorMsg)
 {
 	// Check everything exists.
 	if (!std::filesystem::exists(directory / "Wow.exe"))
-	{
 		errorMsg = fmt::sprintf("Failed to find 'Wow.exe' in directory '%s'.", directory.string());
-		ImGui::OpenPopup("popup");
-		return false;
-	}
-	if (!std::filesystem::exists(directory / "Data"))
-	{
+	else if (!std::filesystem::exists(directory / "Data"))
 		errorMsg = fmt::sprintf("Failed to find 'Data' in directory '%s'.", directory.string());
-		ImGui::OpenPopup("popup");
-		return false;
-	}
-	if (!std::filesystem::exists(directory / "WTF"))
-	{
+	else if (!std::filesystem::exists(directory / "WTF"))
 		errorMsg = fmt::sprintf("Failed to find 'WTF' in directory '%s'.", directory.string());
-		ImGui::OpenPopup("popup");
-		return false;
-	}
-	if (!std::filesystem::exists(directory / "WTF" / "Config.wtf"))
-	{
+	else if (!std::filesystem::exists(directory / "WTF" / "Config.wtf"))
 		errorMsg = fmt::sprintf("Failed to find 'WTF/Config.wtf' in directory '%s'.", directory.string());
+
+	if (!errorMsg.empty())
 		return false;
-	}
 
 	// Find locale.
 	std::ifstream stream;
@@ -130,55 +117,193 @@ bool ProjectSelectWindow::OpenClient(const std::filesystem::path& directory, std
 	return true;
 }
 
+//std::string s_wowDirectory = "";
+//void OpenWowFolderCallback(void* userdata, const char* const* filelist, int filter)
+//{
+//	if (!filelist || !*filelist)
+//		return;
+//
+//	s_wowDirectory = *filelist;
+//
+//	//assert(false && "Implement this!");
+//}
+
 bool ProjectSelectWindow::Render()
 {
-	bool openMapSelect = false;
+	static std::string clientLocation;
 
 	if (!StartRender())
 		return true;
 
-	static std::string popupmessage = "";
+	//static std::string popupmessage = "";
 
-	ImGui::DockSpaceOverViewport(nullptr, ImGuiDockNodeFlags_AutoHideTabBar | ImGuiDockNodeFlags_NoTabBar);
+	ImGui::DockSpaceOverViewport(0, nullptr, ImGuiDockNodeFlags_AutoHideTabBar | ImGuiDockNodeFlags_NoTabBar);
 
-	if (ImGui::Begin("main"))
+	static int selectedProject = -1;
+	static std::string wowDirectory = "";
+	static std::string popupMessage = "";
+	if (ImGui::Begin("Projects"))
 	{
-		static ImVec2 buttonPos = ImVec2(ImGui::GetCurrentContext()->FontSize * 12, ImGui::GetCurrentContext()->FontSize + 12);
-		ImGui::SetCursorPos({ ImGui::GetWindowWidth() / 2 - buttonPos.x / 2, ImGui::GetWindowHeight() / 2 - buttonPos.y / 2});
-		if (ImGui::Button("Load Client", buttonPos))
-			SFILE_DIALOG->Open("filedialog_loadclient", "Open WoW Directory", "", false, true);
+		const auto& projects = SSettingsFile._settings.projects;
+		for (int i = 0; i < projects.size(); i++)
+		{
+			if (ImGuiEx::BeginSelectable(fmt::sprintf("##project%i", i).c_str(), selectedProject == i))
+			{
+				if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+					wowDirectory = projects[i].client_path;
+				selectedProject = i;
+			}
 
-		ImGui::SetCursorPos({ ImGui::GetWindowWidth() - 32, 0 });
-		if (ImGui::Button("X", { 32, 32 }))
-			m_shouldClose = true;
+			ImGui::Text("%s", projects[i].project_name.c_str());
+			ImGui::Text("%s", projects[i].project_path.c_str());
+			ImGui::Text("%s", projects[i].client_path.c_str());
+			ImGui::SameLine();
+			ImGuiEx::AnchorWindow(ImGui::GetWindowSize(), ImGuiEx::AnchorArea::RIGHT);
+			ImGui::Text("%s", projects[i].client_version < s_expansionNames.size() ? s_expansionNames[projects[i].client_version] : "Unknown version");
+
+			ImGuiEx::EndSelectable();
+
+			ImGui::SetCursorPos(ImVec2( ImGui::GetCursorPosX(), ImGui::GetCursorPosY() + 12.0f ));
+
+		}
+
+		ImGui::End();
 	}
-	ImGui::End();
+
+	if (ImGui::Begin("Menu"))
+	{
+		static char projectName[254];
+		static char projectPath[254];
+		static char clientPath[254];
+		static int  clientVersion;
+
+		if (ImGui::Button("Create"))
+		{
+			ImGui::OpenPopup("create_project_popup");
+			selectedProject = -1;
+			*projectName = '\0';
+			*projectPath = '\0';
+			*clientPath = '\0';
+			clientVersion = 2;
+		}
+
+		if (selectedProject == -1)
+			ImGui::BeginDisabled();
+
+		if (ImGui::Button("Edit") && selectedProject != -1)
+		{
+			ImGui::OpenPopup("create_project_popup");
+			strcpy(projectName, SSettingsFile._settings.projects[selectedProject].project_name.c_str());
+			strcpy(projectPath, SSettingsFile._settings.projects[selectedProject].project_path.c_str());
+			strcpy(clientPath, SSettingsFile._settings.projects[selectedProject].client_path.c_str());
+			clientVersion = SSettingsFile._settings.projects[selectedProject].client_version;
+		}
+
+		if (ImGui::Button("Delete") && selectedProject != -1)
+		{
+			SSettingsFile._settings.curr_project = -1;
+			SSettingsFile._settings.projects.erase(SSettingsFile._settings.projects.begin() + selectedProject);
+			SSettingsFile._settings.projects.shrink_to_fit();
+		}
+
+		if (selectedProject == -1)
+			ImGui::EndDisabled();
+
+		if (ImGui::BeginPopup("create_project_popup"))
+		{
+			ImGui::Text("Create new project");
+
+			ImGui::InputText("Project name: ", projectName, sizeof(projectName));
+
+			if (ImGui::Button("##project_path_dialog"))
+			{
+				SDL_ShowOpenFolderDialog([](void* userdata, const char* const* filelist, int filter) -> void {
+					if (filelist && *filelist)
+						strcpy(projectPath, *filelist);
+					}, nullptr, m_window, projectPath, false);
+			}
+			ImGui::SameLine();
+			ImGui::InputText("Project path: ", projectPath, sizeof(projectPath));
+
+			if (ImGui::Button("##client_path_dialog"))
+			{
+				SDL_ShowOpenFolderDialog([](void* userdata, const char* const* filelist, int filter) -> void {
+					if (filelist && *filelist)
+						strcpy(clientPath, *filelist);
+					}, nullptr, m_window, clientPath, false);
+			}
+			ImGui::SameLine();
+			ImGui::InputText("Client path: ", clientPath, sizeof(clientPath));
+
+			ImGui::Combo("Client Version", &clientVersion, s_expansionNames.data(), s_expansionNames.size(), -1);
+
+			if (ImGui::Button(selectedProject == -1 ? "Create" : "Update"))
+			{
+				if (selectedProject == -1)
+					SSettingsFile._settings.projects.emplace_back(Settings::Project{ std::string(projectName), std::string(projectPath) , std::string(clientPath), (uint32_t)clientVersion });
+				else
+				{
+					SSettingsFile._settings.projects[selectedProject].project_name = projectName;
+					SSettingsFile._settings.projects[selectedProject].project_path = projectPath;
+					SSettingsFile._settings.projects[selectedProject].client_path = clientPath;
+					SSettingsFile._settings.projects[selectedProject].client_version = clientVersion;
+				}
+				ImGui::CloseCurrentPopup();
+			}
+
+			ImGui::EndPopup();
+		}
+
+		ImGui::End();
+	}
+
+	//if (ImGui::Begin("main"))
+	//{
+	//	static ImVec2 buttonPos = ImVec2(ImGui::GetCurrentContext()->FontSize * 12, ImGui::GetCurrentContext()->FontSize + 12);
+	//	ImGui::SetCursorPos({ ImGui::GetWindowWidth() / 2 - buttonPos.x / 2, ImGui::GetWindowHeight() / 2 - buttonPos.y / 2});
+	//	if (ImGui::Button("Load Client", buttonPos))
+	//	{
+	//		//SFILE_DIALOG->Open("filedialog_loadclient", "Open WoW Directory", "", false, true);
+	//		SDL_ShowOpenFolderDialog(OpenWowFolderCallback, nullptr, m_window, "", false);
+	//	}
+
+	//	ImGui::SetCursorPos({ ImGui::GetWindowWidth() - 32, 0 });
+	//	if (ImGui::Button("X", { 32, 32 }))
+	//		m_shouldClose = true;
+	//}
+	//ImGui::End();
 
 	// Load mpq.
-	if (SFILE_DIALOG->IsDone("filedialog_loadclient"))
+	if (wowDirectory != "")
 	{
-		if (SFILE_DIALOG->HasResult()) {
-			popupmessage = "";
-			if (!OpenClient(SFILE_DIALOG->GetResult(), popupmessage))
-				ImGui::OpenPopup("popup");
-			else
-				openMapSelect = true;
+		popupMessage = "";
+		if (!OpenClient(wowDirectory, popupMessage))
+			ImGui::OpenPopup("popup");
+		else
+		{
+			_openMapSelect = true;
+			clientLocation = wowDirectory;
+			wowDirectory = "";
 		}
-		SFILE_DIALOG->Close();
 	}
 
 	if (ImGui::BeginPopup("popup"))
 	{
-		ImGui::Text(popupmessage.c_str());
+		ImGui::Text(popupMessage.c_str());
 		ImGui::EndPopup();
 	}
 
 	EndRender();
 
-	if (openMapSelect)
-		SWindowMgr->AddWindow(new MapSelectWindow(this, LocaleStringToEnum(_locale)));
+	//if (_openMapSelect)
+	//	SWindowMgr->AddWindow(new MapSelectWindow(this, LocaleStringToEnum(_locale)));
 
-	openMapSelect = false;
+	if (_openMapSelect)
+	{
+		new ToolsHubWindow(this, clientLocation, LocaleStringToEnum(_locale));
+	}
+
+	_openMapSelect = false;
 
 	return true;
 }

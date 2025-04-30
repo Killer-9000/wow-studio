@@ -1,14 +1,12 @@
 #pragma once
 
-#include <RefCntAutoPtr.hpp>
-#include <SwapChain.h>
-#include <SDL.h>
-#include <imgui_internal.h>
+#include "graphics/Rendering.h"
 
-#include <string_view>
+#include <SDL3/SDL.h>
+#include "graphics/imgui_extensions/ImGuiExtension.h"
+
+#include <string>
 #include <vector>
-
-using namespace std::chrono_literals;
 
 class IWindow
 {
@@ -25,16 +23,16 @@ public:
 		if (event.window.windowID != SDL_GetWindowID(m_window))
 			return false;
 
-		if (event.type == SDL_WINDOWEVENT)
+		if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED)
+			m_shouldClose = true;
+		else if (event.type == SDL_EVENT_WINDOW_MINIMIZED)
+			m_minimized = true;
+		else if (event.type == SDL_EVENT_WINDOW_RESTORED || event.type == SDL_EVENT_WINDOW_MAXIMIZED)
+			m_minimized = false;
+		else if (event.type == SDL_EVENT_WINDOW_RESIZED)
 		{
-			if (event.window.event == SDL_WINDOWEVENT_CLOSE)
-				m_shouldClose = true;
-			else if (event.window.event == SDL_WINDOWEVENT_MINIMIZED)
-				m_minimized = true;
-			else if (event.window.event == SDL_WINDOWEVENT_RESTORED)
-				m_minimized = false;
-			else if (event.window.event == SDL_WINDOWEVENT_RESIZED)
-				SDL_GetWindowSize(m_window, &m_windowWidth, &m_windowHeight);
+			SDL_GetWindowSize(m_window, (int*)&m_windowWidth, (int*)&m_windowHeight);
+			CreateSwapchain();
 		}
 		return true;
 	}
@@ -47,26 +45,50 @@ public:
 	SDL_Window* GetWindow() { return m_window; }
 
 protected:
-	IWindow(const std::string& windowName, int width, int height, SDL_WindowFlags extraFlags = SDL_WindowFlags::SDL_WINDOW_SHOWN);
+	IWindow(const std::string& windowName, uint32_t width, uint32_t height, SDL_WindowFlags extraFlags = 0);
 
 	bool StartRender();
 	void EndRender();
 
+	void CreateSwapchain();
+
+	const vk::CommandBuffer& GetCurrCommandBuffer() const
+	{
+		return _frameData[_frameIndex].cmdBuffer;
+	}
+
 	std::string m_windowName;
-	int m_windowWidth;
-	int m_windowHeight;
+	uint32_t m_windowWidth;
+	uint32_t m_windowHeight;
 	SDL_WindowFlags m_extraFlags;
 	bool m_shouldClose = true;
 	bool m_minimized = false;
 
 	SDL_Window* m_window = nullptr;
-	ImGuiContext* m_imguiContext;
+	ImGuiEx::Context* m_imguiContext;
 
-	std::chrono::nanoseconds frameStart = 0ms;
-	std::chrono::nanoseconds frameEnd = 1ms;
-	int64_t frameDelta = 16;
+	uint32_t _presentQueueIndex;
+	vk::SurfaceKHR _surface;
+	vk::SwapchainKHR _swapchain;
+	vk::Format _swapchainFormat;
+	std::vector<vk::Image> _swapchainImages;
+	std::vector<vk::ImageView> _swapchainImageViews;
 
-	Diligent::RefCntAutoPtr<Diligent::ISwapChain> m_swapchain;
+	static constexpr int FRAMES_IN_FLIGHT = 2;
+	uint32_t _frameIndex = 0;
+	uint32_t _imageIndex = 0;
 
-	const float m_clearColour[4] = { .2f,.2f, .2f, 1.0f };
+	struct FrameData
+	{
+		vk::CommandBuffer cmdBuffer;
+		vk::Semaphore imageAcquiredSemaphore;
+		vk::Semaphore renderCompleteSemaphore;
+		vk::Fence inFlightFence;
+	} _frameData[FRAMES_IN_FLIGHT];
+
+	uint64_t _frameStart = 0;
+	uint64_t _frameEnd = 1;
+	uint64_t _frameDelta = 16;
+
+	vk::ClearValue _clearColour = vk::ClearValue(vk::ClearColorValue(.2f,.2f, .2f, 1.0f));
 };

@@ -14,16 +14,7 @@ void WorldRenderer::Unload()
 
 void WorldRenderer::Render(WorldView* view)
 {
-	auto mapTileView = view->GetRegistry().view<MapTile>();
-
-	// Check if rendering data needs changing.
-	for (const auto& [entity, mapTile] : mapTileView.each())
-	{
-		if (!mapTile.loaded)
-			continue;
-	}
-
 	//// Render map tiles.
 	//SRenderer->GetDeviceContext()->DrawIndexedIndirect();
-	mapTileRenderer.Render(mapTileView);
+	mapTileRenderer.Render(view);
 }

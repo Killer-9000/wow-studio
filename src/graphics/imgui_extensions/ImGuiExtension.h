@@ -1,16 +1,17 @@
 #pragma once
 
 #include "graphics/imgui/imgui.h"
+#include "graphics/imgui/imgui_internal.h"
 
 namespace ImGuiEx
 {
 	enum class AnchorArea
 	{
 		CENTRE = 0x0,
-		TOP    = 0x1,
+		TOP = 0x1,
 		BOTTOM = 0x2,
-		LEFT   = 0x4,
-		RIGHT  = 0x8,
+		LEFT = 0x4,
+		RIGHT = 0x8,
 
 		TOP_LEFT = TOP | LEFT,
 		TOP_RIGHT = TOP | RIGHT,
@@ -18,40 +19,38 @@ namespace ImGuiEx
 		BOTTOM_RIGHT = BOTTOM | RIGHT,
 	};
 
-	void AnchorWindow(ImVec2 parentSize, AnchorArea anchor)
+	struct Selectable
 	{
-		ImVec2 finalPos;
+		char* Label;
+		ImGuiID ID;
+		ImVec2 CursorPos;
+		ImVec2 LastSize;
+		bool Selected;
+		ImGuiSelectableFlags Flags;
 
-		switch (anchor)
+		// Old current selectable.
+		int SelectableIndex;
+	};
+
+	struct Context : ImGuiContext
+	{
+		ImPool<Selectable> Selectables;
+		Selectable* CurrentSelectable;
+
+		Context(ImFontAtlas* shared_font_atlas = nullptr)
+			: ImGuiContext(shared_font_atlas)
 		{
-		case AnchorArea::TOP:
-			finalPos = ImVec2(parentSize.x / 2 - ImGui::GetWindowWidth(), 0);
-			break;
-		case AnchorArea::BOTTOM:
-			finalPos = ImVec2(parentSize.x / 2 - ImGui::GetWindowWidth(), parentSize.y - ImGui::GetWindowHeight());
-			break;
-		case AnchorArea::LEFT:
-			finalPos = ImVec2(0, parentSize.y / 2 - ImGui::GetWindowHeight());
-			break;
-		case AnchorArea::RIGHT:
-			finalPos = ImVec2(parentSize.x - ImGui::GetWindowWidth(), parentSize.y / 2 - ImGui::GetWindowHeight());
-			break;
-		case AnchorArea::TOP_LEFT:
-			finalPos = ImVec2(0, 0);
-			break;
-		case AnchorArea::TOP_RIGHT:
-			finalPos = ImVec2(parentSize.x - ImGui::GetWindowWidth(), 0);
-			break;
-		case AnchorArea::BOTTOM_LEFT:
-			finalPos = ImVec2(0, parentSize.y - ImGui::GetWindowHeight());
-			break;
-		case AnchorArea::BOTTOM_RIGHT:
-			finalPos = ImVec2(parentSize.x - ImGui::GetWindowWidth(), parentSize.y - ImGui::GetWindowHeight());
-			break;
-		default:
-			finalPos = ImVec2(parentSize.x / 2 - ImGui::GetWindowWidth(), parentSize.y / 2 - ImGui::GetWindowHeight());
+			CurrentSelectable = nullptr;
 		}
+	};
 
-		ImGui::SetWindowPos(finalPos, ImGuiCond_Appearing);
-	}
+	Context* CreateContext(ImFontAtlas* shared_font_atlas = nullptr);
+
+	void AnchorWindow(ImVec2 parentSize, AnchorArea anchor);
+
+	bool BeginSelectableEx(const char* str_id, ImGuiID id, bool selected = false, ImGuiSelectableFlags flags = 0);
+
+	bool BeginSelectable(const char* str_id, bool selected = false, ImGuiSelectableFlags flags = 0);
+
+	void EndSelectable();
 }

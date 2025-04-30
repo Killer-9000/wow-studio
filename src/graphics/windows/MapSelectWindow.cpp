@@ -36,7 +36,7 @@ bool MapSelectWindow::Render()
 	if (!StartRender())
 		return true;
 
-	ImGui::DockSpaceOverViewport(nullptr, ImGuiDockNodeFlags_AutoHideTabBar | ImGuiDockNodeFlags_NoTabBar);
+	ImGui::DockSpaceOverViewport(0, nullptr, ImGuiDockNodeFlags_AutoHideTabBar | ImGuiDockNodeFlags_NoTabBar);
 
 	ImGui::Begin("main");
 
@@ -78,7 +78,7 @@ bool MapSelectWindow::Render()
 	EndRender();
 
 	if (m_openMap)
-		SWindowMgr->AddWindow(new MapViewWindow(this, m_openMapName, m_openMapID, m_locale));
+		new MapViewWindow(this, m_openMapName, m_openMapID, m_locale);
 
 	return true;
 }

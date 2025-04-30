@@ -1,6 +1,9 @@
 #pragma once
 
+#include <tsl/robin_map.h>
 #include <string>
+
+typedef tsl::robin_map<size_t, std::string_view> ListfileMap;
 
 class IArchive
 {
@@ -20,8 +23,11 @@ public:
 	virtual bool ContainsFile(std::string_view) = 0;
 	virtual bool OpenFile(std::string_view, uint8_t**, uint32_t*) = 0;
 
+	virtual bool LoadListfile(ListfileMap* listfile, const char** listfileData, size_t* listfileSize, const char** listfilePtr) = 0;
+	
 	ArchiveType GetArchiveType() const { return m_type; }
 	const std::string& GetArchiveName() const { return m_filename; }
+
 
 protected:
 	IArchive(std::string name, ArchiveType type)

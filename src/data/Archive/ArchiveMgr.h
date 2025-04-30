@@ -25,6 +25,11 @@ public:
 	{
 		auto& item = m_archives.emplace_back(archive);
 		item->LoadArchive();
+
+		// Load listfile.
+		if (!item->LoadListfile(&m_filenames, &m_filenamesData, &m_filenamesSize, &m_filenamesPtr))
+			printf("Failed to load listfile for archive '%s'\n", archive->GetArchiveName().c_str());
+
 		return item;
 	}
 
@@ -110,8 +115,21 @@ public:
 		return false;
 	}
 
+	std::string_view GetFilename(ListfileMap::key_type filehash)
+	{
+		if (!m_filenames.contains(filehash))
+			return std::string_view();
+		return m_filenames[filehash];
+	}
+
 private:
 	ArchiveVector m_archives;
+
+	// A list of filenames from the archives.
+	ListfileMap m_filenames;
+	const char* m_filenamesData;
+	size_t m_filenamesSize = 0;
+	const char* m_filenamesPtr;
 };
 
 #define SArchiveMgr ArchiveMgr::Instance()

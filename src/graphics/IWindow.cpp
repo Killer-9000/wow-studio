@@ -1,74 +1,87 @@
 #include "IWindow.h"
 
-#include "Renderer.h"
 #include "WindowMgr.h"
+#include "data/SettingsFile.h"
+#include "graphics/imgui/backends/imgui_impl_sdl3.h"
+#include "graphics/imgui/backends/imgui_impl_vulkan.h"
 
-#include "graphics/imgui_extensions/ImFileDialog.h"
-#include <backends/imgui_impl_diligent.h>
-#include <imgui_internal.h>
+#include <tracy/Tracy.hpp>
 
 bool IWindow::Init()
 {
   // Create a window
-  m_window = SDL_CreateWindow(m_windowName.data(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, m_windowWidth, m_windowHeight, SDL_WINDOW_VULKAN | m_extraFlags);
+  m_window = SDL_CreateWindow(m_windowName.data(), m_windowWidth, m_windowHeight, m_extraFlags | SDL_WINDOW_VULKAN);
   if (!m_window)
   {
-    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error during startup", "Failed to create window during startup", nullptr);
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error during startup", "Failed to create window", nullptr);
     return false;
   }
-  SDL_SetWindowData(m_window, "container", this);
 
-  // Initialize Diligent
-  Diligent::SwapChainDesc SCDesc(m_windowWidth, m_windowHeight, Diligent::TEX_FORMAT_RGBA8_UNORM_SRGB, Diligent::TEX_FORMAT_D32_FLOAT);
-
-  SRenderer->GetFactory()->CreateSwapChainVk(SRenderer->GetRenderDevice(), SRendererContext, SCDesc, Diligent::NativeWindow(m_window, true), &m_swapchain);
-  if (!m_swapchain)
+  VkSurfaceKHR surface;
+  if (!SDL_Vulkan_CreateSurface(m_window, SRendering._instance, NULL, &surface))
   {
-    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error during startup", "Failed to create graphical swapchain during startup", nullptr);
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error during startup", "Failed to create window surface", nullptr);
     return false;
+  }
+  _surface = vk::SurfaceKHR(surface);
+
+  std::vector<vk::QueueFamilyProperties> qfp = SRendering._physicalDevice.getQueueFamilyProperties();
+  _presentQueueIndex = UINT32_MAX;
+  for (int i = 0; i < qfp.size(); i++)
+  {
+    if (qfp[i].queueFlags & vk::QueueFlagBits::eGraphics
+      && SRendering._physicalDevice.getSurfaceSupportKHR(static_cast<uint32_t>(i), _surface))
+    {
+      _presentQueueIndex = i;
+      break;
+    }
+  }
+  assert(_presentQueueIndex != UINT32_MAX && "Failed to find graphics queue on device.");
+
+  CreateSwapchain();
+
+  for (int i = 0; i < FRAMES_IN_FLIGHT; i++)
+  {
+    _frameData[i].cmdBuffer = SRendering._device.allocateCommandBuffers(vk::CommandBufferAllocateInfo(SRendering._commandPool, vk::CommandBufferLevel::ePrimary, 1)).front();
+    _frameData[i].imageAcquiredSemaphore = SRendering._device.createSemaphore(vk::SemaphoreCreateInfo());
+    _frameData[i].renderCompleteSemaphore = SRendering._device.createSemaphore(vk::SemaphoreCreateInfo());
+    _frameData[i].inFlightFence = SRendering._device.createFence(vk::FenceCreateInfo(vk::FenceCreateFlagBits::eSignaled));
   }
 
   // Initialize ImGui
-  m_imguiContext = ImGui::CreateContext();
+  m_imguiContext = ImGuiEx::CreateContext();
   ImGui::SetCurrentContext(m_imguiContext);
   ImGuiIO& io = ImGui::GetIO(); (void)io;
   io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;   // Enable Docking
   ImGui::StyleColorsDark();
 
-  // File dialog settings handler
-  {
-    ImGuiSettingsHandler ini_handler;
-    ini_handler.TypeName = "FileDialog";
-    ini_handler.TypeHash = ImHashStr("FileDialog");
-    ini_handler.ReadOpenFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, const char* line) -> void*
-    {
-      // This is to fake data.
-      return (void*)0x1;
-    };
-    ini_handler.ReadLineFn = [](ImGuiContext* ctx, ImGuiSettingsHandler*, void* entry, const char* line)
-    {
-      char directory[260] = { '\0' };
-      if (sscanf(line, "Last Directory=%s", directory) == 1) { SFILE_DIALOG->SetDirectory(directory); }
-    };
-    ini_handler.WriteAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* buf)
-    {
-      std::string currentDir = SFILE_DIALOG->GetDirectory().string();
-      buf->reserve(buf->size() + (int)currentDir.size() + 36);
-      buf->appendf("[%s][Settings]\n", handler->TypeName);
-      buf->appendf("Last Directory=%s\n\n", currentDir.c_str());
-    };
-    ini_handler.UserData = SFILE_DIALOG;
-    ImGui::AddSettingsHandler(&ini_handler);
-    ImGui::LoadIniSettingsFromDisk(ImGui::GetIO().IniFilename);
-  }
-
-  if (!ImGui_ImplSDL2_InitForVulkan(m_window))
+  if (!ImGui_ImplSDL3_InitForVulkan(m_window))
   {
     SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error during startup", "Failed to initialize ImGui platform backend", nullptr);
     return false;
   }
 
-  if (!ImGui_ImplDiligent_Init(SRendererDevice, SRendererContext))
+  ImGui_ImplVulkan_InitInfo initInfo = {};
+  initInfo.Instance = SRendering._instance;
+  initInfo.PhysicalDevice = SRendering._physicalDevice;
+  initInfo.Device = SRendering._device;
+  initInfo.QueueFamily = SRendering._graphicsQueueIndex;
+  initInfo.Queue = SRendering._graphicsQueue;
+  initInfo.DescriptorPool = VK_NULL_HANDLE;
+  initInfo.RenderPass = VK_NULL_HANDLE;
+  initInfo.MinImageCount = 2;
+  initInfo.ImageCount = 2;
+  initInfo.MSAASamples = VkSampleCountFlagBits::VK_SAMPLE_COUNT_1_BIT;
+  initInfo.PipelineCache = VK_NULL_HANDLE;
+  initInfo.Subpass = 0;
+  initInfo.DescriptorPoolSize = 2;
+  initInfo.UseDynamicRendering = true;
+  initInfo.PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo(0, 1, &_swapchainFormat);
+  initInfo.Allocator = nullptr;
+  initInfo.CheckVkResultFn = nullptr;
+  initInfo.MinAllocationSize = 1024 * 1024;
+
+  if (!ImGui_ImplVulkan_Init(&initInfo))
   {
     SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error during startup", "Failed to initialize ImGui renderer backend", nullptr);
     return false;
@@ -83,48 +96,209 @@ void IWindow::Deinit()
 {
   m_shouldClose = true;
 
-  ImGui_ImplDiligent_Shutdown();
-  ImGui_ImplSDL2_Shutdown();
+  SRendering._device.waitIdle();
+
+  ImGui_ImplVulkan_Shutdown();
+  ImGui_ImplSDL3_Shutdown();
   ImGui::DestroyContext(m_imguiContext);
 
-  m_swapchain.Release();
+  for (int i = 0; i < FRAMES_IN_FLIGHT; i++)
+  {
+    SRendering._device.destroySemaphore(_frameData[i].imageAcquiredSemaphore);
+    SRendering._device.destroySemaphore(_frameData[i].renderCompleteSemaphore);
+    SRendering._device.destroyFence(_frameData[i].inFlightFence);
+  }
+
+  for (auto& imageView : _swapchainImageViews)
+    SRendering._device.destroyImageView(imageView);
+  _swapchainImageViews.clear();
+  _swapchainImages.clear();
+  SRendering._device.destroySwapchainKHR(_swapchain);
+
+  SDL_Vulkan_DestroySurface(SRendering._instance, _surface, nullptr);
 
   SDL_DestroyWindow(m_window);
 }
 
-IWindow::IWindow(const std::string& windowName, int width, int height, SDL_WindowFlags extraFlags)
+IWindow::IWindow(const std::string& windowName, uint32_t width, uint32_t height, SDL_WindowFlags extraFlags)
   : m_windowName{ windowName }, m_windowWidth{ width }, m_windowHeight{ height }, m_extraFlags{ extraFlags }
 {
+  SWindowMgr->AddWindow(this);
 }
 
 bool IWindow::StartRender()
 {
+  const vk::CommandBuffer& currCmdBuffer = GetCurrCommandBuffer();
+
   if (m_minimized)
     return false;
 
   ImGui::SetCurrentContext(m_imguiContext);
 
-  auto* pRTV = m_swapchain->GetCurrentBackBufferRTV();
-  auto* pDSV = m_swapchain->GetDepthBufferDSV();
-  SRendererContext->SetRenderTargets(1, &pRTV, pDSV, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-  SRendererContext->ClearRenderTarget(pRTV, m_clearColour, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-  SRendererContext->ClearDepthStencil(pDSV, Diligent::CLEAR_DEPTH_FLAG, 1.0f, 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+  vk::Result result = SRendering._device.waitForFences(_frameData[_frameIndex].inFlightFence, true, UINT64_MAX);
+  if (result != vk::Result::eSuccess)
+    return false;
+
+  result = SRendering._device.acquireNextImageKHR(_swapchain, UINT64_MAX, _frameData[_frameIndex].imageAcquiredSemaphore, {}, &_imageIndex);
+
+  if (result == vk::Result::eErrorOutOfDateKHR)
+  {
+    CreateSwapchain();
+    return false;
+  }
+  else if (result != vk::Result::eSuccess && result != vk::Result::eSuboptimalKHR)
+    return false;
+
+  SRendering._device.resetFences(_frameData[_frameIndex].inFlightFence);
+
+  currCmdBuffer.reset();
+
+  currCmdBuffer.begin(vk::CommandBufferBeginInfo(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
+
+  // Swap image layout for rendering.
+  {
+    vk::ImageMemoryBarrier imageMemoryBarrier;
+    imageMemoryBarrier.srcAccessMask = vk::AccessFlagBits::eNone;
+    imageMemoryBarrier.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+    imageMemoryBarrier.oldLayout = vk::ImageLayout::eUndefined;
+    imageMemoryBarrier.newLayout = vk::ImageLayout::eColorAttachmentOptimal;
+    imageMemoryBarrier.image = _swapchainImages[_imageIndex];
+    imageMemoryBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
+
+    currCmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eBottomOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::DependencyFlags(), { }, { }, { imageMemoryBarrier });
+  }
+
+  vk::RenderingAttachmentInfo colourAttachment;
+  colourAttachment.imageView = _swapchainImageViews[_imageIndex];
+  colourAttachment.imageLayout = vk::ImageLayout::eColorAttachmentOptimal;
+  colourAttachment.loadOp = vk::AttachmentLoadOp::eClear;
+  colourAttachment.storeOp = vk::AttachmentStoreOp::eStore;
+  colourAttachment.clearValue = _clearColour;
+  currCmdBuffer.beginRendering(vk::RenderingInfo(vk::RenderingFlags(), vk::Rect2D({ 0,0 }, { m_windowWidth, m_windowHeight }), 1, 0, 1, &colourAttachment), SRendering.GetDispatch());
+
+  currCmdBuffer.setViewport(0, { vk::Viewport(0.0f, 0.0f, (float)m_windowWidth, (float)m_windowHeight, 0.1f, 1.0f) });
+  currCmdBuffer.setScissor(0, { vk::Rect2D({ 0, 0 }, { m_windowWidth, m_windowHeight }) });
 
   // Start frame
-  ImGui_ImplSDL2_NewFrame();
-  ImGui_ImplDiligent_NewFrame();
+  ImGui_ImplVulkan_NewFrame();
+  ImGui_ImplSDL3_NewFrame();
   ImGui::NewFrame();
 
-	return true;
+  return true;
 }
 
 void IWindow::EndRender()
 {
+  const vk::CommandBuffer& currCmdBuffer = GetCurrCommandBuffer();
+
   ImGui::SetCurrentContext(m_imguiContext);
 
   // Render frame
   ImGui::Render();
-  ImGui_ImplDiligent_RenderDrawData(ImGui::GetDrawData());
 
-  m_swapchain->Present();
+  ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), currCmdBuffer);
+
+  currCmdBuffer.endRendering(SRendering.GetDispatch());
+
+  // Swap image layout for presenting.
+  {
+    vk::ImageMemoryBarrier imageMemoryBarrier;
+    imageMemoryBarrier.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+    imageMemoryBarrier.dstAccessMask = vk::AccessFlagBits::eNone;
+    imageMemoryBarrier.oldLayout = vk::ImageLayout::eColorAttachmentOptimal;
+    imageMemoryBarrier.newLayout = vk::ImageLayout::ePresentSrcKHR;
+    imageMemoryBarrier.image = _swapchainImages[_imageIndex];
+    imageMemoryBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
+
+    currCmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe, vk::DependencyFlags(), { }, { }, { imageMemoryBarrier });
+  }
+
+  currCmdBuffer.end();
+
+  vk::PipelineStageFlags stageBits = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+  auto submitInfo = vk::SubmitInfo(1, &_frameData[_frameIndex].imageAcquiredSemaphore, &stageBits, 1, &currCmdBuffer, 1, &_frameData[_frameIndex].renderCompleteSemaphore);
+  SRendering._graphicsQueue.submit(submitInfo, _frameData[_frameIndex].inFlightFence);
+
+  vk::Result result = SRendering._graphicsQueue.presentKHR(vk::PresentInfoKHR(1, &_frameData[_frameIndex].renderCompleteSemaphore, 1, &_swapchain, &_imageIndex, nullptr));
+
+  if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR)
+    CreateSwapchain();
+
+  _frameIndex = (_frameIndex + 1) % FRAMES_IN_FLIGHT;
+}
+
+void IWindow::CreateSwapchain()
+{
+  SRendering._device.waitIdle();
+
+  _frameIndex = 0;
+  _imageIndex = 0;
+
+  for (auto& imageView : _swapchainImageViews)
+    SRendering._device.destroyImageView(imageView);
+  _swapchainImageViews.clear();
+  _swapchainImages.clear();
+  SRendering._device.destroySwapchainKHR(_swapchain);
+
+  // get the supported VkFormats
+  std::vector<vk::SurfaceFormatKHR> formats = SRendering._physicalDevice.getSurfaceFormatsKHR(_surface);
+  assert(!formats.empty());
+  _swapchainFormat = (formats[0].format == vk::Format::eUndefined) ? vk::Format::eB8G8R8A8Unorm : formats[0].format;
+
+  vk::SurfaceCapabilitiesKHR surfaceCapabilities = SRendering._physicalDevice.getSurfaceCapabilitiesKHR(_surface);
+  vk::Extent2D               swapchainExtent;
+  if (surfaceCapabilities.currentExtent.width == (std::numeric_limits<uint32_t>::max)())
+  {
+    // If the surface size is undefined, the size is set to the size of the images requested.
+    swapchainExtent.width = std::clamp(m_windowWidth, surfaceCapabilities.minImageExtent.width, surfaceCapabilities.maxImageExtent.width);
+    swapchainExtent.height = std::clamp(m_windowHeight, surfaceCapabilities.minImageExtent.height, surfaceCapabilities.maxImageExtent.height);
+  }
+  else
+  {
+    // If the surface size is defined, the swap chain size must match
+    swapchainExtent = surfaceCapabilities.currentExtent;
+  }
+
+  vk::SurfaceTransformFlagBitsKHR preTransform = (surfaceCapabilities.supportedTransforms & vk::SurfaceTransformFlagBitsKHR::eIdentity)
+    ? vk::SurfaceTransformFlagBitsKHR::eIdentity
+    : surfaceCapabilities.currentTransform;
+
+  vk::CompositeAlphaFlagBitsKHR compositeAlpha =
+    (surfaceCapabilities.supportedCompositeAlpha & vk::CompositeAlphaFlagBitsKHR::ePreMultiplied) ? vk::CompositeAlphaFlagBitsKHR::ePreMultiplied
+    : (surfaceCapabilities.supportedCompositeAlpha & vk::CompositeAlphaFlagBitsKHR::ePostMultiplied) ? vk::CompositeAlphaFlagBitsKHR::ePostMultiplied
+    : (surfaceCapabilities.supportedCompositeAlpha & vk::CompositeAlphaFlagBitsKHR::eInherit) ? vk::CompositeAlphaFlagBitsKHR::eInherit
+    : vk::CompositeAlphaFlagBitsKHR::eOpaque;
+
+  vk::SwapchainCreateInfoKHR swapChainCreateInfo;
+  swapChainCreateInfo.flags = vk::SwapchainCreateFlagsKHR();
+  swapChainCreateInfo.surface = _surface;
+  swapChainCreateInfo.minImageCount = std::clamp<uint32_t>(FRAMES_IN_FLIGHT, surfaceCapabilities.minImageCount, surfaceCapabilities.maxImageCount);
+  swapChainCreateInfo.imageFormat = _swapchainFormat;
+  swapChainCreateInfo.imageExtent = swapchainExtent;
+  swapChainCreateInfo.imageArrayLayers = 1;
+  swapChainCreateInfo.imageUsage = vk::ImageUsageFlagBits::eColorAttachment;
+  swapChainCreateInfo.preTransform = preTransform;
+  swapChainCreateInfo.compositeAlpha = compositeAlpha;
+
+  if (SSettingsFile._settings.graphics.vsync)
+    swapChainCreateInfo.presentMode = vk::PresentModeKHR::eFifo;
+  else
+    swapChainCreateInfo.presentMode = vk::PresentModeKHR::eImmediate;
+  
+  swapChainCreateInfo.clipped = true;
+  swapChainCreateInfo.imageSharingMode = vk::SharingMode::eExclusive;
+  std::array<uint32_t, 1> queueFamilyIndicies = { _presentQueueIndex };
+  swapChainCreateInfo.setQueueFamilyIndices(queueFamilyIndicies);
+
+  _swapchain = SRendering._device.createSwapchainKHR(swapChainCreateInfo);
+
+  _swapchainImages = SRendering._device.getSwapchainImagesKHR(_swapchain);
+
+  _swapchainImageViews.reserve(_swapchainImages.size());
+  vk::ImageViewCreateInfo imageViewCreateInfo(vk::ImageViewCreateFlags(), {}, vk::ImageViewType::e2D, _swapchainFormat, {}, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
+  for (auto& image : _swapchainImages)
+  {
+    imageViewCreateInfo.image = image;
+    _swapchainImageViews.push_back(SRendering._device.createImageView(imageViewCreateInfo));
+  }
 }

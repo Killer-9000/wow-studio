@@ -7,8 +7,9 @@
 #include <fmt/printf.h>
 #include <fmt/xchar.h>
 
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <Windows.h>
-#include <windows.system.threading.h>
 
 using namespace std::chrono_literals;
 
@@ -36,7 +37,7 @@ public:
 
 	static AsyncLoader* Instance()
 	{
-		static AsyncLoader loader(16);
+		static AsyncLoader loader(8);
 		return &loader;
 	}
 

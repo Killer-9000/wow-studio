@@ -8,14 +8,26 @@ set ( CMAKE_CXX_STANDARD 20 )
 set ( CMAKE_CXX_STANDARD_REQUIRED True )
 set ( USE_FOLDERS ON)
 set ( PREDEFINED_TARGETS_FOLDER "CMakePredefinedTargets")
+set ( CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+set ( CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set ( CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 
 # Compiler options
 if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /ZI")
+  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}")
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /INCREMENTAL")
 endif()
+
+# find Vulkan SDK
+find_package( Vulkan REQUIRED )
+
+# Require Vulkan version >= 1.3.256 (earliest version when the Vulkan module was available)
+#if( ${Vulkan_VERSION} VERSION_LESS "1.3.256" )
+#  message( FATAL_ERROR "Minimum required Vulkan version for C++ modules is 1.3.256. "
+#           "Found ${Vulkan_VERSION}."
+#  )
+#endif()
 
 file(GLOB_RECURSE sources ${CMAKE_SOURCE_DIR}/src/*)
 
@@ -35,23 +47,23 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/vendor)
 target_include_directories( wowstudio PUBLIC ${GLM_INCLUDE_DIRS} )
 target_link_libraries(wowstudio
     PUBLIC
-        Diligent-GraphicsEngineVk-static
-        Diligent-TargetPlatform
-        Diligent-Common
-
 		EnTT::EnTT
         fmt::fmt
 		glm::glm
+        nlohmann_json::nlohmann_json
         tsl::robin_map
+        SDL3::SDL3
         storm
-        
-        Vulkan::Headers
+        Tracy::TracyClient
+        Vulkan::Vulkan
+        GPUOpen::VulkanMemoryAllocator
+        VulkanMemoryAllocator-Hpp
 )
 
 # Copy resource files.
 add_custom_command(
     TARGET wowstudio PRE_BUILD
-    COMMAND ${CMAKE_COMMAND} -E rm -R
+    COMMAND ${CMAKE_COMMAND} -E rm -rf
             ${CMAKE_CURRENT_BINARY_DIR}/resources/
 )
 add_custom_command(

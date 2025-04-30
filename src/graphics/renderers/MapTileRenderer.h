@@ -1,21 +1,22 @@
 #pragma once
 
 #include <entt/entt.hpp>
-#include <Buffer.h>
-#include <RefCntAutoPtr.hpp>
+#include <SDL3/SDL.h>
 
-class MapTile;
+class WorldView;
 
 class MapTileRenderer
 {
 public:
 	void Upload();
 	void Unload();
-	void Render(entt::view<MapTile>& tile);
+	void Render(WorldView* view);
 
-	Diligent::RefCntAutoPtr<Diligent::IBuffer> gpuDataBuffer;
+	SDL_GPUBuffer* gpuDataBuffer = nullptr;
 
 private:
-	Diligent::RefCntAutoPtr<Diligent::IBuffer> _vertexBuffer;
-	Diligent::RefCntAutoPtr<Diligent::IBuffer> _indexBuffer;
+	SDL_GPUBuffer* _vertexBuffer = nullptr;
+	SDL_GPUBuffer* _indexBuffer = nullptr;
+
+	SDL_GPUGraphicsPipeline* _pipeline = nullptr;
 };
