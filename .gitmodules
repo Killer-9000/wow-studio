@@ -22,3 +22,6 @@
 [submodule "vendor/VulkanMemoryAllocator-Hpp"]
 	path = vendor/VulkanMemoryAllocator-Hpp
 	url = https://github.com/YaaZ/VulkanMemoryAllocator-Hpp.git
+[submodule "vendor/tracy"]
+	path = vendor/tracy
+	url = https://github.com/wolfpld/tracy.git
