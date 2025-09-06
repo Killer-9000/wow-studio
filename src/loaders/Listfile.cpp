@@ -1,7 +1,9 @@
 #include "Listfile.h"
 #include "util/MappedFile.h"
 #include <immintrin.h>
+#include <charconv>
 
+__attribute__((target("sse4")))
 bool Listfile::LoadListfile(std::string_view filepath)
 {
 	if (m_data)
@@ -39,7 +41,7 @@ bool Listfile::LoadListfile(std::string_view filepath)
 
 	// Tidy listfile
 	{
-		static const __m128i mmSlashs = _mm_set1_epi8('\\\\');
+		static const __m128i mmSlashs = _mm_set1_epi8('\\');
 		static const __m128i mmSlash = _mm_set1_epi8('/');
 		static const __m128i mmReturns = _mm_set1_epi8('\r');
 		static const __m128i mmNewline = _mm_set1_epi8('\n');
@@ -53,7 +55,7 @@ bool Listfile::LoadListfile(std::string_view filepath)
 		for (char* mmData = m_data; mmData < m_data + m_dataSize; mmData += sizeof(__m128i))
 		{
 			// Need to load, as data is not aligned to 16.
-			__m128i mmChars = _mm_loadu_epi8(mmData);
+			__m128i mmChars = _mm_loadu_si128((__m128i_u*)mmData);
 
 			// Check for uppercase
 			// Compare where upppercase, then using mask, add char difference.
@@ -73,7 +75,7 @@ bool Listfile::LoadListfile(std::string_view filepath)
 			mmMask = _mm_cmpeq_epi8(mmChars, mmSemiColon);
 			mmChars = _mm_blendv_epi8(mmChars, mmNull, mmMask);
 
-			_mm_storeu_epi8(mmData, mmChars);
+			_mm_storeu_si128((__m128i_u*)mmData, mmChars);
 		}
 	}
 

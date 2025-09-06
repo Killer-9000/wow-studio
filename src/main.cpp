@@ -1,6 +1,6 @@
 #include "graphics/Rendering.h"
 #include "graphics/WindowMgr.h"
-#include "graphics/windows/ProjectSelectWindow.h"
+#include "windows/ProjectSelectWindow.h"
 
 #include <tracy/Tracy.hpp>
 
@@ -22,10 +22,11 @@ int main(int argc, char* argv[])
   {
     SWindowMgr->ProcessSDLEvents();
     SWindowMgr->UpdateWindows();
-
     SWindowMgr->CleanupWindows();
+    FrameMark;
   }
 
+  SWindowMgr->CleanupWindows(true);
   SRendering.Destroy();
   SDL_Quit();
 

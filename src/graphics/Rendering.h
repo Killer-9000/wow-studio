@@ -1,10 +1,14 @@
 #pragma once
 
+// Make VMA use Vulkan 1.2
+#define VMA_VULKAN_VERSION 1002000
+
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
+#include <vk_mem_alloc.hpp>
 #include <vulkan/vulkan.hpp>
 
-VkBool32 VulkanDebugUtilsCallback(
+vk::Bool32 VulkanDebugUtilsCallback(
 	vk::DebugUtilsMessageSeverityFlagBitsEXT       messageSeverity,
 	vk::DebugUtilsMessageTypeFlagsEXT              messageTypes,
 	const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData,
@@ -19,6 +23,7 @@ public:
 
 	void init();
 
+	// Debug utils
 	VkResult vkCreateDebugUtilsMessengerEXT(VkInstance instance,
 		const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
 		const VkAllocationCallbacks* pAllocator,
@@ -33,6 +38,7 @@ public:
 		return pfn_vkDestroyDebugUtilsMessengerEXT(instance, messenger, pAllocator);
 	}
 
+	// Dynamic rendering.
 	void vkCmdBeginRenderingKHR(VkCommandBuffer commandBuffer, const VkRenderingInfo* pRenderingInfo) const noexcept
 	{
 		return pfn_vkCmdBeginRenderingKHR(commandBuffer, pRenderingInfo);
@@ -40,6 +46,12 @@ public:
 	void vkCmdEndRenderingKHR(VkCommandBuffer commandBuffer) const noexcept
 	{
 		return pfn_vkCmdEndRenderingKHR(commandBuffer);
+	}
+
+	// Device fault.
+	VkResult vkGetDeviceFaultInfoEXT(VkDevice device, VkDeviceFaultCountsEXT* pFaultCounts, VkDeviceFaultInfoEXT* pFaultInfo) const
+	{
+		return pfn_vkGetDeviceFaultInfoEXT(device, pFaultCounts, pFaultInfo);
 	}
 
 private:
@@ -50,6 +62,9 @@ private:
 	/* --- VK_KHR_dynamic_rendering --- */
 	PFN_vkCmdBeginRenderingKHR pfn_vkCmdBeginRenderingKHR = nullptr;
 	PFN_vkCmdEndRenderingKHR pfn_vkCmdEndRenderingKHR = nullptr;
+
+	/* --- VK_EXT_device_fault. --- */
+	PFN_vkGetDeviceFaultInfoEXT pfn_vkGetDeviceFaultInfoEXT = nullptr;
 };
 
 class Rendering
@@ -76,7 +91,7 @@ public:
 			};
 			std::vector<const char*> extensions =
 			{
-				//"VK_EXT_debug_utils"
+				vk::EXTDebugUtilsExtensionName
 			};
 
 			uint32_t count;
@@ -93,17 +108,17 @@ public:
 		_dispatchLoader.init();
 
 		// Debug reporting
-		//{
-		//	vk::DebugUtilsMessengerCreateInfoEXT debugCI(
-		//		vk::DebugUtilsMessengerCreateFlagsEXT(),
-		//		vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
-		//		vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation
-		//		  | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
-		//		(vk::PFN_DebugUtilsMessengerCallbackEXT)VulkanDebugUtilsCallback
-		//	);
-		//
-		//	_vulkanDebugReportCallback = _instance.createDebugUtilsMessengerEXT(debugCI, nullptr, GetDispatch());
-		//}
+		{
+			vk::DebugUtilsMessengerCreateInfoEXT debugCI(
+				vk::DebugUtilsMessengerCreateFlagsEXT(),
+				vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
+				vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation
+				  | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
+				VulkanDebugUtilsCallback
+			);
+		
+			_vulkanDebugReportCallback = _instance.createDebugUtilsMessengerEXT(debugCI, nullptr, GetDispatch());
+		}
 
 		// Create device to use.
 		{
@@ -127,10 +142,7 @@ public:
 			};
 			std::vector<const char*> extensions =
 			{
-				"VK_KHR_swapchain",
-				//"VK_KHR_create_renderpass2",
-				//"VK_KHR_depth_stencil_resolve",
-				//"VK_KHR_dynamic_rendering"
+				vk::KHRSwapchainExtensionName
 			};
 
 			// Features seem to automatically set.
@@ -141,7 +153,8 @@ public:
 			vk::PhysicalDeviceTimelineSemaphoreFeatures timelineSemaphoreFeature(true, &pageableMemoryFeature);
 
 			// Wanted features
-			vk::PhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeature(true, &timelineSemaphoreFeature);
+			vk::PhysicalDeviceFaultFeaturesEXT faultFeature(true, false, &timelineSemaphoreFeature);
+			vk::PhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeature(true, &faultFeature);
 			vk::PhysicalDeviceFeatures2 features(vk::PhysicalDeviceFeatures(), &dynamicRenderingFeature);
 
 			// Features seem to automatically set.
@@ -157,13 +170,22 @@ public:
 
 			_graphicsQueue = _device.getQueue(_graphicsQueueIndex, 0);
 		}
+
+		vma::AllocatorCreateInfo allocatorCI;
+		// allocatorCI.flags = vma::AllocatorCreateFlagBits::eExtMemoryBudget;
+		allocatorCI.vulkanApiVersion = vk::ApiVersion12;
+		allocatorCI.physicalDevice = _physicalDevice;
+		allocatorCI.device = _device;
+		allocatorCI.instance = _instance;
+		_vmaAllocator = vma::createAllocator(allocatorCI);
 	}
 
 	void Destroy()
 	{
+		_vmaAllocator.destroy();
 		_device.destroyCommandPool(_commandPool);
 		_device.destroy();
-		//_instance.destroyDebugUtilsMessengerEXT(_vulkanDebugReportCallback, nullptr, GetDispatch());
+		_instance.destroyDebugUtilsMessengerEXT(_vulkanDebugReportCallback, nullptr, GetDispatch());
 		_instance.destroy();
 	}
 
@@ -173,12 +195,14 @@ public:
 	VulkanDispatchLoader _dispatchLoader;
 
 	vk::Instance _instance;
-	//vk::DebugUtilsMessengerEXT _vulkanDebugReportCallback;
+	vk::DebugUtilsMessengerEXT _vulkanDebugReportCallback;
 	vk::PhysicalDevice _physicalDevice;
 	vk::Device _device;
 	vk::CommandPool _commandPool;
 	uint32_t _graphicsQueueIndex;
 	vk::Queue _graphicsQueue;
+
+	vma::Allocator _vmaAllocator;
 };
 
 #define SRendering Rendering::Instance()

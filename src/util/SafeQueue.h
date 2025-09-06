@@ -112,19 +112,7 @@ public:
 		return q.front();
 	}
 
-	std::deque<T>::const_reference front() const
-	{
-		std::unique_lock<std::mutex> lock(mtx);
-		return q.front();
-	}
-
 	std::deque<T>::reference back()
-	{
-		std::unique_lock<std::mutex> lock(mtx);
-		return q.back();
-	}
-
-	std::deque<T>::const_reference back() const
 	{
 		std::unique_lock<std::mutex> lock(mtx);
 		return q.back();
@@ -136,22 +124,9 @@ public:
 		return q.begin();
 	}
 
-	std::deque<T>::const_iterator begin() const noexcept
-	{
-		std::unique_lock<std::mutex> lock(mtx);
-		return q.begin();
-	}
-
 	std::deque<T>::iterator end() noexcept
 	{
 		std::unique_lock<std::mutex> lock(mtx);
 		return q.end();
 	}
-
-	std::deque<T>::const_iterator end() const noexcept
-	{
-		std::unique_lock<std::mutex> lock(mtx);
-		return q.end();
-	}
-
 };

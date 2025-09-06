@@ -1,4 +1,7 @@
+#define VMA_IMPLEMENTATION
+
 #include "Rendering.h"
+
 
 void VulkanDispatchLoader::init()
 {
@@ -11,9 +14,12 @@ void VulkanDispatchLoader::init()
 	/* --- VK_KHR_dynamic_rendering --- */
 	pfn_vkCmdBeginRenderingKHR = (PFN_vkCmdBeginRenderingKHR)instance.getProcAddr("vkCmdBeginRenderingKHR");
 	pfn_vkCmdEndRenderingKHR = (PFN_vkCmdEndRenderingKHR)instance.getProcAddr("vkCmdEndRenderingKHR");
+	
+	/* --- VK_EXT_device_fault. --- */
+	pfn_vkGetDeviceFaultInfoEXT = (PFN_vkGetDeviceFaultInfoEXT)instance.getProcAddr("vkGetDeviceFaultInfoEXT");
 }
 
-VkBool32 VulkanDebugUtilsCallback(
+vk::Bool32 VulkanDebugUtilsCallback(
 	vk::DebugUtilsMessageSeverityFlagBitsEXT       messageSeverity,
 	vk::DebugUtilsMessageTypeFlagsEXT              messageTypes,
 	const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData,

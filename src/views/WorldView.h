@@ -1,6 +1,7 @@
 #pragma once
 
 #include "IViewport.h"
+#include "data/ClientData.h"
 #include "data/WorldData.h"
 #include <graphics/renderers/WorldRenderer.h>
 #include "loaders/AsyncLoader.h"
@@ -13,24 +14,30 @@
 class WorldView : public IViewport
 {
 public:
-	WorldView(uint32_t mapID, WowLocaleEnum locale)
-		: _mapID(mapID), _mapDBC(locale), _locale(locale)
+	WorldView()
 	{
-		_mapDBC.LoadFile();
+		worldRenderer.Upload();
+	}
 
-		MapDBC::Record* record = _mapDBC.GetRecord(mapID);
+	~WorldView()
+	{
+		worldRenderer.Unload();
+	}
+
+	bool LoadMap(uint32_t mapID)
+	{
+		MapDBC::Record* record = SClientData.MapDatabase.GetRecord(mapID);
 
 		if (!record)
-			return;
+			return false;
 
-		worldRenderer.Upload();
 
 		// Load WDT
 		if (!SArchiveMgr->FileExists(fmt::sprintf("World\\Maps\\%s\\%s.wdt", record->Directory, record->Directory)))
-			return;
+			return false;
 		
 		if (!WorldDataLoader::Load(&_worldData, record))
-			return;
+			return false;
 
 		MapTileRenderer& renderer = worldRenderer.mapTileRenderer;
 
@@ -45,16 +52,21 @@ public:
 					SAsyncLoader->AddWork([&renderer, entity, x, y, record]() { MapTileLoader::Load(renderer.gpuDataBuffer, entity, record, x, y); });
 				}
 			}
+
+		return true;
 	}
 
-	~WorldView()
+	bool LoadWMO(std::string filename)
 	{
-		worldRenderer.Unload();
+		return false;
 	}
 
-	WowLocaleEnum GetLocale() { return _locale; }
+	bool LoadModel(std::string filename)
+	{
+		return false;
+	}
 
-	glm::vec3 GetCameraForward()
+	glm::vec3 GetCameraForward() const
 	{
 		glm::vec3 direction;
 		direction.x = cos(glm::radians(CameraRot.y)) * cos(glm::radians(CameraRot.x));
@@ -62,7 +74,7 @@ public:
 		direction.z = sin(glm::radians(CameraRot.y)) * cos(glm::radians(CameraRot.x));
 		return glm::normalize(direction);
 	}
-	glm::vec3 GetCameraRight()
+	glm::vec3 GetCameraRight() const
 	{
 		return glm::cross(GetCameraForward(), glm::vec3(0, 1, 0));
 	}
@@ -76,9 +88,7 @@ public:
 	WorldRenderer worldRenderer;
 
 private:
-	uint32_t _mapID;
-	MapDBC _mapDBC;
-	WowLocaleEnum _locale;
 	WorldData _worldData;
+	
 	Entity _mapTiles[64][64];
 };

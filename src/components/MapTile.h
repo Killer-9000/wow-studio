@@ -15,7 +15,6 @@ struct MapTile : public BaseComponent
 		float height[9 * 9 + 8 * 8];
 		glm::vec4 colour[9 * 9 + 8 * 8];
 		glm::vec3 normal[9 * 9 + 8 * 8];
-		bool shadow[9 * 9 + 8 * 8];
 	};
 
 	MapTile() = delete;
@@ -27,5 +26,5 @@ struct MapTile : public BaseComponent
 
 	// Chunk data for the GPU.
 	GPUData _gpuData[16][16];
-	bool loaded = false;
+	bool _loaded = false;
 };

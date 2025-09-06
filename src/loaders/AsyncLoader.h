@@ -3,13 +3,16 @@
 #include "util/SafeQueue.h"
 #include <chrono>
 #include <thread>
+#include <functional>
 
 #include <fmt/printf.h>
 #include <fmt/xchar.h>
 
+#if PLATFORM_WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <Windows.h>
+#endif
 
 using namespace std::chrono_literals;
 
@@ -22,7 +25,9 @@ class AsyncLoader
 		{
 			_threads[i] = std::thread(std::bind(&AsyncLoader::ProcessAsyncWork, this));
 			
+#if PLATFORM_WIN32
 			SetThreadDescription(_threads[i].native_handle(), fmt::sprintf(L"Async Loader Thread %i", i).c_str());
+#endif
 		}
 	}
 	~AsyncLoader()
@@ -43,7 +48,6 @@ public:
 
 	void ProcessAsyncWork()
 	{
-		ConvertThreadToFiber(nullptr);
 		AsyncWork work;
 		while (_queue.ConsumeWait(work))
 		{

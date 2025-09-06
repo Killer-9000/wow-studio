@@ -16,7 +16,6 @@ public:
 	virtual bool Init();
 	virtual void Deinit();
 
-	// Update and ProcessSDLEvent are optional.
 	virtual bool Update() { return true; }
 	virtual bool ProcessSDLEvent(const SDL_Event& event)
 	{
@@ -32,7 +31,7 @@ public:
 		else if (event.type == SDL_EVENT_WINDOW_RESIZED)
 		{
 			SDL_GetWindowSize(m_window, (int*)&m_windowWidth, (int*)&m_windowHeight);
-			CreateSwapchain();
+			// CreateSwapchain();
 		}
 		return true;
 	}
@@ -44,6 +43,11 @@ public:
 	ImGuiContext* GetImGuiContext() { return m_imguiContext; }
 	SDL_Window* GetWindow() { return m_window; }
 
+	virtual ~IWindow()
+	{
+		Deinit();
+	}
+	
 protected:
 	IWindow(const std::string& windowName, uint32_t width, uint32_t height, SDL_WindowFlags extraFlags = 0);
 
@@ -56,6 +60,8 @@ protected:
 	{
 		return _frameData[_frameIndex].cmdBuffer;
 	}
+
+	bool m_initialized = false;
 
 	std::string m_windowName;
 	uint32_t m_windowWidth;
@@ -74,7 +80,7 @@ protected:
 	std::vector<vk::Image> _swapchainImages;
 	std::vector<vk::ImageView> _swapchainImageViews;
 
-	static constexpr int FRAMES_IN_FLIGHT = 2;
+	static constexpr int FRAMES_IN_FLIGHT = 1;
 	uint32_t _frameIndex = 0;
 	uint32_t _imageIndex = 0;
 
@@ -90,5 +96,5 @@ protected:
 	uint64_t _frameEnd = 1;
 	uint64_t _frameDelta = 16;
 
-	vk::ClearValue _clearColour = vk::ClearValue(vk::ClearColorValue(.2f,.2f, .2f, 1.0f));
+	vk::ClearValue _clearColour = vk::ClearValue(vk::ClearColorValue(.2f, .2f, .2f, 1.0f));
 };

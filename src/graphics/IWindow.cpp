@@ -7,6 +7,11 @@
 
 #include <tracy/Tracy.hpp>
 
+void ImGui_CheckVKResult(VkResult result)
+{
+  assert(result == VK_SUCCESS && "Failed ImGui vulkan result check.");
+}
+
 bool IWindow::Init()
 {
   // Create a window
@@ -74,11 +79,11 @@ bool IWindow::Init()
   initInfo.MSAASamples = VkSampleCountFlagBits::VK_SAMPLE_COUNT_1_BIT;
   initInfo.PipelineCache = VK_NULL_HANDLE;
   initInfo.Subpass = 0;
-  initInfo.DescriptorPoolSize = 2;
+  initInfo.DescriptorPoolSize = 16;
   initInfo.UseDynamicRendering = true;
   initInfo.PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo(0, 1, &_swapchainFormat);
   initInfo.Allocator = nullptr;
-  initInfo.CheckVkResultFn = nullptr;
+  initInfo.CheckVkResultFn = ImGui_CheckVKResult;
   initInfo.MinAllocationSize = 1024 * 1024;
 
   if (!ImGui_ImplVulkan_Init(&initInfo))
@@ -89,11 +94,14 @@ bool IWindow::Init()
 
   m_shouldClose = false;
 
+  m_initialized = true;
+
   return true;
 }
 
 void IWindow::Deinit()
 {
+  m_initialized = false;
   m_shouldClose = true;
 
   SRendering._device.waitIdle();
@@ -128,6 +136,7 @@ IWindow::IWindow(const std::string& windowName, uint32_t width, uint32_t height,
 
 bool IWindow::StartRender()
 {
+  FrameMarkStart(m_windowName.c_str());
   const vk::CommandBuffer& currCmdBuffer = GetCurrCommandBuffer();
 
   if (m_minimized)
@@ -136,8 +145,7 @@ bool IWindow::StartRender()
   ImGui::SetCurrentContext(m_imguiContext);
 
   vk::Result result = SRendering._device.waitForFences(_frameData[_frameIndex].inFlightFence, true, UINT64_MAX);
-  if (result != vk::Result::eSuccess)
-    return false;
+  assert(result == vk::Result::eSuccess && "Waiting for frame fences failed.");
 
   result = SRendering._device.acquireNextImageKHR(_swapchain, UINT64_MAX, _frameData[_frameIndex].imageAcquiredSemaphore, {}, &_imageIndex);
 
@@ -146,8 +154,7 @@ bool IWindow::StartRender()
     CreateSwapchain();
     return false;
   }
-  else if (result != vk::Result::eSuccess && result != vk::Result::eSuboptimalKHR)
-    return false;
+  assert((result == vk::Result::eSuccess || result == vk::Result::eSuboptimalKHR) && "Acquiring presentation image failed.");
 
   SRendering._device.resetFences(_frameData[_frameIndex].inFlightFence);
 
@@ -219,17 +226,44 @@ void IWindow::EndRender()
   auto submitInfo = vk::SubmitInfo(1, &_frameData[_frameIndex].imageAcquiredSemaphore, &stageBits, 1, &currCmdBuffer, 1, &_frameData[_frameIndex].renderCompleteSemaphore);
   SRendering._graphicsQueue.submit(submitInfo, _frameData[_frameIndex].inFlightFence);
 
-  vk::Result result = SRendering._graphicsQueue.presentKHR(vk::PresentInfoKHR(1, &_frameData[_frameIndex].renderCompleteSemaphore, 1, &_swapchain, &_imageIndex, nullptr));
+  auto presentInfo = vk::PresentInfoKHR(1, &_frameData[_frameIndex].renderCompleteSemaphore, 1, &_swapchain, &_imageIndex, nullptr);
+  vk::Result result = (vk::Result)vkQueuePresentKHR(SRendering._graphicsQueue, presentInfo);
 
   if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR)
     CreateSwapchain();
+  else
+  {
+    assert(result == vk::Result::eSuccess && "Presenting frame failed.");
+  }
 
   _frameIndex = (_frameIndex + 1) % FRAMES_IN_FLIGHT;
+
+  FrameMarkEnd(m_windowName.c_str());
 }
 
 void IWindow::CreateSwapchain()
 {
-  SRendering._device.waitIdle();
+  vk::Result result = (vk::Result)vkDeviceWaitIdle(SRendering._device);
+  if (result == vk::Result::eErrorDeviceLost)
+  {
+    VkDeviceFaultCountsEXT faultCounts = {};
+    faultCounts.sType = VK_STRUCTURE_TYPE_DEVICE_FAULT_COUNTS_EXT;
+    VkDeviceFaultInfoEXT faultInfo = {};
+    faultInfo.sType = VK_STRUCTURE_TYPE_DEVICE_FAULT_INFO_EXT;
+
+    result = (vk::Result)SRendering._dispatchLoader.vkGetDeviceFaultInfoEXT((VkDevice)SRendering._device, &faultCounts, nullptr);
+    assert (result == vk::Result::eSuccess && "Failed to get fault info after device loss.");
+
+    faultInfo.pAddressInfos = new VkDeviceFaultAddressInfoEXT[faultCounts.addressInfoCount];
+    faultInfo.pVendorInfos = new VkDeviceFaultVendorInfoEXT[faultCounts.vendorInfoCount];
+    faultInfo.pVendorBinaryData = 0;
+
+    result = (vk::Result)SRendering._dispatchLoader.vkGetDeviceFaultInfoEXT(SRendering._device, &faultCounts, &faultInfo);
+    assert (result == vk::Result::eSuccess && "Failed to get fault info after device loss.");
+
+    printf("Device loss: %s", faultInfo.description);
+  }
+  assert(result == vk::Result::eSuccess && "Waiting for idle failed.");
 
   _frameIndex = 0;
   _imageIndex = 0;

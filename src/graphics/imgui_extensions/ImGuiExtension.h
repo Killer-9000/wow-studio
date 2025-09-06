@@ -32,6 +32,7 @@ namespace ImGuiEx
 		int SelectableIndex;
 	};
 
+	// Use this over the normal context, as it contains support for extended elements.
 	struct Context : ImGuiContext
 	{
 		ImPool<Selectable> Selectables;

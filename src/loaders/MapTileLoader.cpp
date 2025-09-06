@@ -64,24 +64,68 @@ void MapTileLoader::Load(void* gpuDataBuffer, Entity* tile, MapDBC::Record* reco
 			uint8_t* ptr = data + mcin->entries[x][y].offset;
 			ADT::MCNKChunk* mcnk = (ADT::MCNKChunk*)ptr;
 
-			ADT::MCVTChunk* mcvt = (ADT::MCVTChunk*)(data + mcnk->ofsHeight);
-			ADT::MCCVChunk* mccv = (ADT::MCCVChunk*)(data + mcnk->ofsMCCV);
-			ADT::MCNRChunk* mcnr = (ADT::MCNRChunk*)(data + mcnk->ofsNormal);
-			ADT::MCSHChunk* mcsh = (ADT::MCSHChunk*)(data + mcnk->ofsShadow);
+			ADT::MCVTChunk* mcvt = (ADT::MCVTChunk*)(ptr + mcnk->ofsHeight);
+			ADT::MCCVChunk* mccv = (ADT::MCCVChunk*)(mcnk->flags & ADT::MCNKChunk::MCNKFlags_HasMCCV ? ptr + mcnk->ofsMCCV : nullptr);
+			ADT::MCNRChunk* mcnr = (ADT::MCNRChunk*)(ptr + mcnk->ofsNormal);
+			ADT::MCSHChunk* mcsh = (ADT::MCSHChunk*)(mcnk->flags & ADT::MCNKChunk::MCNKFlags_HasMCSH ? ptr + mcnk->ofsShadow : nullptr);
 
 			memcpy(gpuData.height, mcvt->height, 9 * 9 + 8 * 8);
-			for (int i = 0; i < 9 * 9 + 8 * 8; i++)
-			{
-				glm::u8vec4& col = mccv->entries[i].colour;
-				gpuData.colour[i] = { col.b, col.g, col.r, col.a };
-			}
-			for (int i = 0; i < 9 * 9 + 8 * 8; i++)
-				gpuData.normal[i] = mcnr->entries[i].normal;
+			memcpy(gpuData.normal, mcnr->normals, 9 * 9 + 8 * 8);
 
-			for (int i = 0; i < 9 * 9 + 8 * 8; i++)
-				gpuData.shadow[i] = false;
-			for (int i = 0; i < 9 * 9 + 8 * 8; i++)
-				gpuData.hole[i] = false;
+			if (mccv)
+			{
+				for (int i = 0; i < 9 * 9 + 8 * 8; i++)
+				{
+					glm::u8vec4& col = mccv->colours[i];
+					gpuData.colour[i] = { col.b, col.g, col.r, col.a };
+				}
+			}
+
+			if (mcsh)
+			{
+				// TODO: This is more like a texture.
+				// for (int i = 0; i < 9 * 9 + 8 * 8; i++)
+				// {
+				// 	gpuData.shadow[i] = mcsh->shadowMap;
+				// }
+			}
+
+			// TODO: Once I figure out the triangle rendering method, this should be per-triangle, instead of per-vertex.
+			for (int x = 0, i = 0; x < 4; x++)
+			for (int y = 0;        y < 4; y++, i++)
+			{
+				bool hole = mcnk->holesLowRes & 1 << i;
+				
+				//  0     1     2
+				//     9    10
+				// 17    18    19
+				//    26    27
+				// 34    35    36
+
+				// x x x
+				//  x x
+				// x x x
+				//  x x
+				// x x x
+				
+				gpuData.hole[0] = false;
+				gpuData.hole[1] = false;
+				gpuData.hole[2] = false;
+				
+				gpuData.hole[y * 34 + x * 8 + 9] = hole;
+				gpuData.hole[y * 34 + x * 8 + 10] = hole;
+
+				gpuData.hole[17] = false;
+				gpuData.hole[18] = false;
+				gpuData.hole[19] = false;
+				
+				gpuData.hole[y * 34 + x * 8 + 26] = hole;
+				gpuData.hole[y * 34 + x * 8 + 27] = hole;
+				
+				gpuData.hole[34] = false;
+				gpuData.hole[35] = false;
+				gpuData.hole[36] = false;
+			}
 
 			gpuData.discard = false;
 		}
@@ -100,5 +144,5 @@ void MapTileLoader::Load(void* gpuDataBuffer, Entity* tile, MapDBC::Record* reco
 	//memcpy((uint8_t*)mapped + ((sizeof(MapTile::GPUData) * (16 * 16)) * (y * 16 + x)), tile->GetMapTile()->_gpuData, sizeof(MapTile::_gpuData));
 	//SRendererContext->UnmapBuffer(gpuDataBuffer, Diligent::MAP_WRITE);
 
-	tile->GetMapTile()->loaded = true;
+	tile->GetMapTile()->_loaded = true;
 }

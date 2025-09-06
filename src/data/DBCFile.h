@@ -1,36 +1,19 @@
 #pragma once
 
-#include "data/Archive/ArchiveMgr.h"
+#include "data/archive/ArchiveMgr.h"
+#include "data/Misc.h"
 
 #include <string_view>
 #include <stdint.h>
 
-enum WowLocaleEnum
-{
-	enUS = 0,
-	enGB,
-	koKR,
-	frFR,
-	deDE,
-	enCN,
-	zhCN,
-	enTW,
-	zhTW,
-	esES,
-	esMX,
-	ruRU,
-	ptPT,
-	ptBR,
-	itIT,
-	Unk,
-	Mask,
-	MAX
-};
+// TODO: Replace with hooking project version, much better.
+
+// TODO: Ignore that other comment, lets 
 
 class DBCFile
 {
 public:
-	DBCFile(WowLocaleEnum locale) : m_locale(locale) { }
+	DBCFile(ELocale locale) : m_locale(locale) { }
 	~DBCFile() { free(m_buffer); }
 
 	bool LoadFile(const char* filename)
@@ -121,13 +104,13 @@ protected:
 		uint32_t stringBlockSize;
 	} *m_header = nullptr;
 
-	WowLocaleEnum m_locale;
+	ELocale m_locale;
 };
 
 class MapDBC : public DBCFile
 {
 public:
-	MapDBC(WowLocaleEnum locale) : DBCFile(locale) { }
+	MapDBC(ELocale locale) : DBCFile(locale) { }
 	~MapDBC() {  }
 
 	bool LoadFile()
@@ -142,17 +125,18 @@ public:
 	{
 		Record() { }
 
-		Record(MapDBC* dbc, uint32_t* data, WowLocaleEnum locale)
+		Record(MapDBC* dbc, uint32_t* data, ELocale locale)
 		{
+			locale = locale == ELocale::Unk ? ELocale::enUS : locale;
 			ID = *data++;
 			Directory = std::string_view(dbc->m_strings + *data++);
 			InstanceType = *data++;
 			Flags = *data++;
 			PVP = *data++;
-			MapName = std::string_view(dbc->m_strings + *(data + locale)); data += WowLocaleEnum::MAX;
+			MapName = std::string_view(dbc->m_strings + *(data + (int)locale)); data += (int)ELocale::MAX + 1;
 			AreaTableID = *data++;
-			MapDescription0 = std::string_view(dbc->m_strings + *(data + locale)); data += WowLocaleEnum::MAX;
-			MapDescription1 = std::string_view(dbc->m_strings + *(data + locale)); data += WowLocaleEnum::MAX;
+			MapDescription0 = std::string_view(dbc->m_strings + *(data + (int)locale)); data += (int)ELocale::MAX + 1;
+			MapDescription1 = std::string_view(dbc->m_strings + *(data + (int)locale)); data += (int)ELocale::MAX + 1;
 			LoadingScreenID = *data++;
 			MinimapIconScale = *((float*)data++);
 			CorpseMapID = *data++;
@@ -164,7 +148,7 @@ public:
 			MaxPlayers = *data++;
 		}
 
-		Record(MapDBC* dbc, size_t index, WowLocaleEnum locale)
+		Record(MapDBC* dbc, size_t index, ELocale locale)
 		{
 			uint8_t* data = dbc->m_data + index * dbc->m_header->recordSize;
 			if (data >= (uint8_t*)dbc->m_strings)

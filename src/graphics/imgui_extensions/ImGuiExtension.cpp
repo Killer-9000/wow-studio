@@ -60,8 +60,11 @@ namespace ImGuiEx
 		Selectable* selectable = g.Selectables.GetByKey(id);
 		if (selectable)
 		{
-			free((void*)selectable->Label);
-			selectable->Label = strdup(str_id);
+			if (strcmp(selectable->Label, str_id) != 0)
+			{
+				free((void*)selectable->Label);
+				selectable->Label = strdup(str_id);
+			}
 			selectable->CursorPos = ImGui::GetCursorPos();
 			selectable->Selected = selected;
 			selectable->Flags = flags;
@@ -106,12 +109,12 @@ namespace ImGuiEx
 
 		ImVec2 pos = ImGui::GetCursorPos();
 
-		ImGui::SetCursorPos(selectable->CursorPos);
 		selectable->LastSize = ImVec2(pos.x - selectable->CursorPos.x, pos.y - selectable->CursorPos.y);
 		if (selectable->LastSize.x == 0.0f)
 			selectable->LastSize.x = g.CurrentWindow->WorkRect.Max.x - g.CurrentWindow->WorkRect.Min.x;
 		if (selectable->LastSize.y == 0.0f)
 			selectable->LastSize.y = g.CurrentWindow->WorkRect.Max.y - g.CurrentWindow->WorkRect.Min.y;
+		ImGui::SetCursorPos(selectable->CursorPos);
 		ImGui::Selectable(selectable->Label, selectable->Selected, selectable->Flags, selectable->LastSize);
 		ImGui::SetCursorPos(pos);
 

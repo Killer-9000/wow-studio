@@ -10,7 +10,7 @@
 
 class WindowMgr
 {
-	typedef std::vector<std::shared_ptr<IWindow>> WindowVector;
+	typedef std::vector<IWindow*> WindowVector;
 
 	WindowMgr() { }
 	~WindowMgr() { ClearWindows(); }
@@ -25,7 +25,6 @@ public:
 	WindowVector::reference AddWindow(IWindow* window)
 	{
 		WindowVector::reference wnd = m_windows.emplace_back(window);
-		wnd->Init();
 		return wnd;
 	}
 
@@ -33,7 +32,7 @@ public:
 	{
 		WindowVector::const_iterator itr = std::find_if(m_windows.begin(), m_windows.end(),
 			[window](WindowVector::reference& _window) {
-				return _window.get() == window;
+				return _window == window;
 			});
 		return itr;
 	}
@@ -42,7 +41,7 @@ public:
 		SDL_Window* window = SDL_GetWindowFromID(windowID);
 		WindowVector::const_iterator itr = std::find_if(m_windows.begin(), m_windows.end(),
 			[window](WindowVector::reference& _window) {
-				return _window.get()->GetWindow() == window;
+				return _window->GetWindow() == window;
 			});
 		return itr;
 	}
@@ -51,30 +50,33 @@ public:
 	{
 		WindowVector::const_iterator itr = std::find_if(m_windows.begin(), m_windows.end(),
 			[window](WindowVector::reference& _window) {
-				return _window.get() == window;
+				return _window == window;
 			});
+		delete *itr;
 		m_windows.erase(itr);
 	}
 
 	void ClearWindows()
 	{
 		for (auto& window : m_windows)
-			window->Deinit();
+		{
+			delete window;
+		}
 		m_windows.clear();
 	}
 
 	size_t WindowCount() { return m_windows.size(); }
 
-	void CleanupWindows()
+	void CleanupWindows(bool force = false)
 	{
 		ZoneScoped;
 
 		for (int i = 0; i < m_windows.size(); i++)
 		{
-			if (m_windows[i]->ShouldClose())
+			if (m_windows[i]->ShouldClose() || force)
 			{
 				ImGui::SetCurrentContext(m_windows[i]->GetImGuiContext());
-				m_windows[i]->Deinit();
+				delete m_windows[i];
 				m_windows.erase(m_windows.begin() + i);
 			}
 		}
@@ -84,9 +86,11 @@ public:
 	{
 		ZoneScoped;
 
-		for (int i = 0; i < m_windows.size(); i++)
+		int wndCount = m_windows.size();
+		for (int i = 0; i < wndCount; i++)
 		{
-			std::shared_ptr<IWindow> window = m_windows[i];
+			IWindow* window = m_windows[i];
+
 			if (!window->ShouldClose())
 			{
 				FrameMarkStart(window->m_windowName.c_str());
@@ -109,6 +113,10 @@ public:
 
 	void ProcessSDLEvents()
 	{
+		for (auto& window : m_windows)
+			if (!window->m_initialized)
+				window->Init();
+
 		ZoneScoped;
 
 		SDL_Event event;
@@ -129,12 +137,12 @@ public:
 			{
 				for (auto& window : m_windows)
 				{
-					auto window = GetWindowFromID(event.window.windowID);
-					if (window == m_windows.end())
+					auto window2 = GetWindowFromID(event.window.windowID);
+					if (window2 == m_windows.end())
 						continue;
-					ImGui::SetCurrentContext((*window)->GetImGuiContext());
+					ImGui::SetCurrentContext((*window2)->GetImGuiContext());
 					ImGui_ImplSDL3_ProcessEvent(&event);
-					(*window)->ProcessSDLEvent(event);
+					(*window2)->ProcessSDLEvent(event);
 				}
 			}
 		}

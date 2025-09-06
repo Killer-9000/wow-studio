@@ -167,8 +167,8 @@ struct ADT
 		uint32_t ofsRefs;
 		uint32_t ofsAlpha;
 		uint32_t sizeAlpha;
-		uint32_t ofsShadow;
-		uint32_t sizeShadow;
+		uint32_t ofsShadow;  // MCNKFlags_HasMCSH
+		uint32_t sizeShadow; // ^
 		uint32_t areaid;
 		uint32_t nMapObjRefs;
 		uint16_t holesLowRes;
@@ -180,9 +180,9 @@ struct ADT
 		uint32_t ofsLiquid;
 		uint32_t sizeLiquid; // 8 when not used.
 		glm::vec3 position;
-		uint32_t ofsMCCV;
-		uint32_t ofsMCLV;
+		uint32_t ofsMCCV;  // MCNKFlags_HasMCCV
 		uint32_t padding1;
+		uint32_t padding2;
 	};
 
 	struct MFBOChunk : public SChunk
@@ -193,6 +193,7 @@ struct ADT
 
 	struct MTXFChunk : public SChunk
 	{
+		// Same count as MTEX
 		uint32_t flags[]; // Use cubemaps.
 	};
 
@@ -204,18 +205,12 @@ struct ADT
 
 	struct MCCVChunk : public SChunk
 	{
-		struct MCCVEntry
-		{
-			glm::u8vec4 colour; // Blue Green Red
-		} entries[9 * 9 + 8 * 8];
+		glm::u8vec4 colours[9 * 9 + 8 * 8]; // BGRA
 	};
 
 	struct MCNRChunk : public SChunk
 	{
-		struct MCNREntry
-		{
-			glm::i8vec3 normal;
-		} entries[9 * 9 + 8 * 8];
+		glm::i8vec3 normals[9 * 9 + 8 * 8];
 		uint8_t padding[13];
 	};
 
@@ -252,6 +247,7 @@ struct ADT
 
 	struct MCSHChunk : public SChunk
 	{
+		// 64 x 64 bits
 		uint8_t shadowMap[512];
 	};
 
@@ -277,32 +273,29 @@ struct ADT
 
 	struct MCLQChunk : public SChunk
 	{
-		struct MCLQVert
+		union MCLQVert
 		{
-			union
+			struct WaterVert
 			{
-				struct WaterVert
-				{
-					uint8_t depth;
-					uint8_t flow0Pct;
-					uint8_t flow1Pct;
-					uint8_t filler;
-					float height;
-				} waterVert;
-				struct OceanVert
-				{
-					uint8_t depth;
-					uint8_t foam;
-					uint8_t wet;
-					uint8_t filler;
-				} oceanVert;
-				struct MagmaVert
-				{
-					uint16_t s;
-					uint16_t t;
-					float height;
-				} magmaVert;
-			};
+				uint8_t depth;
+				uint8_t flow0Pct;
+				uint8_t flow1Pct;
+				uint8_t filler;
+				float height;
+			} waterVert;
+			struct OceanVert
+			{
+				uint8_t depth;
+				uint8_t foam;
+				uint8_t wet;
+				uint8_t filler;
+			} oceanVert;
+			struct MagmaVert
+			{
+				uint16_t s;
+				uint16_t t;
+				float height;
+			} magmaVert;
 		};
 
 		struct MCLQTiles

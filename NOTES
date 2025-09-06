@@ -1,6 +1,5 @@
 - A bunch of the windows might be combined, just so new ones don't keep appearing
 
-- DiligentEngine handling rendering
 - EnTT handling entities
 
 World View:
@@ -25,3 +24,41 @@ World View:
   - Doodad models (Can be either static or dynamic)
     - Static or Dynamic
     - Linked to WMO
+
+--------------------------------------------------
+
+File Browser Tree:
+Tree:
+  Creatures:
+    Illidan:
+    Wolf:
+    Spider:
+  Items:
+  Interface:
+  World:
+    Expansion1:
+    Expansion2:
+    Expansion3:
+    WMO:
+      Expansion1:
+      Expansion2:
+      Expansion3:
+
+  Only load a leaf when double-clicked.
+    If its a path then load the directory, otherwise the file.
+
+
+  Storage:
+      1.
+      Creatures->Items->Interface->World->Illidan->Wolf->Spider->Expansion1->...
+      But this would have the memory fragmented.
+      
+      2. Preferably, but would be more messy.
+      Creatures->Illidan->Wolf->Spider->Items->Interface->World->Expansion1
+
+      Since the code will loop through it recursively.
+      But will also leave the memory fragmented.
+
+      3. Same as 2 but shift memory around as you load it in.
+
+--------------------------------------------------
