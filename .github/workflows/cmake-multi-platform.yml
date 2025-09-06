@@ -46,6 +46,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Checkout submodules
+      run: git submodule update --init --recursive
     
     - name: Setup Vulkan SDK
       uses: humbletim/setup-vulkan-sdk@v1.2.1
